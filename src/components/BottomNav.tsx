@@ -28,9 +28,7 @@ export default function BottomNav({
             key={tab.key}
             onPress={() => onTabChange(tab.key)}
             style={styles.navItem}>
-            <Icon
-              active={active}
-            />
+            <Icon active={active} />
             <Text style={[styles.navLabel, active && styles.navActive]}>
               {tab.label}
             </Text>
