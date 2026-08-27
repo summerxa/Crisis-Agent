@@ -11,9 +11,9 @@ export default function BottomNav({
   onTabChange: (tab: AppTab) => void;
 }) {
   const tabs: { key: AppTab; label: string; icon: string }[] = [
-    { key: 'home', label: 'Home', icon: '⌂' },
-    { key: 'map', label: 'Map', icon: '⌖' },
-    { key: 'chat', label: 'Ask', icon: '◌' },
+    { key: 'home', label: 'Home', icon: '🏠' },
+    { key: 'map', label: 'Map', icon: '📍' },
+    { key: 'chat', label: 'Ask', icon: '✨' },
   ];
 
   return (

@@ -35,7 +35,7 @@ export function InfoBlock({
 }
 
 export function ActionItem({ text, index }: { text: string; index: number }) {
-  const icons = ['ID', 'BAT', 'GO', 'SIG'];
+  const icons = ['🪪', '🔋', '🎒', '📡'];
   return (
     <View style={styles.actionItem}>
       <View style={styles.actionIcon}>
