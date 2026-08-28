@@ -50,7 +50,12 @@ function App() {
                 onNavigate={setActiveTab}
               />
             )}
-            {activeTab === 'map' && <MapScreen onBack={() => setActiveTab('home')} />}
+            {activeTab === 'map' && (
+              <MapScreen
+                onBack={() => setActiveTab('home')}
+                onNavigate={setActiveTab}
+              />
+            )}
             {activeTab === 'chat' && <ChatScreen />}
           </ErrorBoundary>
         </View>

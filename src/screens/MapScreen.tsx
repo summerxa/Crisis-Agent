@@ -2,10 +2,17 @@ import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { LAYERS, SHEET_CONTENT } from '../constants';
 import { layerChipStyles, layerDotStyles, layerTextStyles, styles } from '../styles';
-import type { LayerKey, SheetKey } from '../types';
+import type { AppTab, LayerKey, SheetKey } from '../types';
 import CrisisMap from '../components/CrisisMap';
+import ChatPrompt from '../components/ChatPrompt';
 
-export default function MapScreen({ onBack }: { onBack: () => void }) {
+export default function MapScreen({
+  onBack,
+  onNavigate,
+}: {
+  onBack: () => void;
+  onNavigate: (tab: AppTab) => void;
+}) {
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     myLocation: true,
     wildfire: true,
@@ -91,6 +98,7 @@ export default function MapScreen({ onBack }: { onBack: () => void }) {
           </View>
         </View>
       )}
+      <ChatPrompt onPress={() => onNavigate('chat')} /> 
     </View>
   );
 }

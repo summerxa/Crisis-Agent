@@ -4,6 +4,7 @@ import { COLORS, REFRESH_STEPS } from '../constants';
 import { styles } from '../styles';
 import type { AppTab, HomePhase } from '../types';
 import CrisisMap from '../components/CrisisMap';
+import ChatPrompt from '../components/ChatPrompt';
 import { ActionItem, ChangeItem, Divider, InfoBlock, SectionLabel, SourceTag, StatusBadge } from '../components/common';
 
 export default function HomeScreen({
@@ -20,17 +21,21 @@ export default function HomeScreen({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      {phase === 'no-crisis' ? (
-        <NoCrisisContent onRefresh={() => setPhase('refreshing')} />
-      ) : (
-        <CrisisContent
-          phase={phase}
-          onNavigate={onNavigate}
-          onRefresh={() => setPhase('refreshing')}
-        />
-      )}
-    </ScrollView>
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {phase === 'no-crisis' ? (
+          <NoCrisisContent onRefresh={() => setPhase('refreshing')} />
+        ) : (
+          <CrisisContent
+            phase={phase}
+            onNavigate={onNavigate}
+            onRefresh={() => setPhase('refreshing')}
+          />
+        )}
+      </ScrollView>
+
+      <ChatPrompt onPress={() => onNavigate('chat')} />
+    </View>
   );
 }
 
