@@ -2,6 +2,17 @@ This is a new [**React Native**](https://reactnative.dev) project, bootstrapped 
 
 # Getting Started
 
+## Google Maps configuration
+
+The application expects separate, restricted Google Maps SDK keys for Android and iOS. Never commit either key.
+
+- Android: add `GOOGLE_MAPS_API_KEY=your_android_key` to `android/local.properties`. Restrict it to the Android application ID and signing certificate.
+- iOS: add a user-defined Xcode build setting named `GOOGLE_MAPS_API_KEY` for the CrisisAgent target. Restrict that key to the iOS bundle identifier.
+- Enable **Maps SDK for Android** and **Maps SDK for iOS** and attach billing to the Google Cloud project.
+- After installing JavaScript dependencies, run `bundle exec pod install` from `ios` on macOS before building iOS.
+
+The app requests foreground location only. It acquires one position when it opens and again when the existing Refresh button is used; it does not track in the background.
+
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
 
 ## Step 1: Start Metro

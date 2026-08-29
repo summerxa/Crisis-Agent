@@ -7,6 +7,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import MapScreen from './src/screens/MapScreen';
 import { styles } from './src/styles';
 import type { AppTab, HomePhase } from './src/types';
+import { useCrisisData } from './src/hooks/useCrisisData';
 
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
@@ -35,7 +36,8 @@ class ErrorBoundary extends Component<
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
   const [activeTab, setActiveTab] = useState<AppTab>('home');
-  const [homePhase, setHomePhase] = useState<HomePhase>('crisis');
+  const [homePhase, setHomePhase] = useState<HomePhase>('no-crisis');
+  const crisisData = useCrisisData();
 
   return (
     <SafeAreaProvider>
@@ -48,12 +50,14 @@ function App() {
                 phase={homePhase}
                 setPhase={setHomePhase}
                 onNavigate={setActiveTab}
+                crisisData={crisisData}
               />
             )}
             {activeTab === 'map' && (
               <MapScreen
                 onBack={() => setActiveTab('home')}
                 onNavigate={setActiveTab}
+                crisisData={crisisData}
               />
             )}
             {activeTab === 'chat' && <ChatScreen />}

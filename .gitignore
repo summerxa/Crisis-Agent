@@ -28,6 +28,7 @@ build/
 .idea
 .gradle
 local.properties
+GoogleMaps.xcconfig
 *.iml
 *.hprof
 .cxx/

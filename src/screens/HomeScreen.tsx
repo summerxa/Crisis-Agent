@@ -2,34 +2,58 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { COLORS, REFRESH_STEPS } from '../constants';
 import { styles } from '../styles';
-import type { AppTab, HomePhase } from '../types';
+import type { AppTab, CrisisDataState, HomePhase, LayerKey } from '../types';
 import CrisisMap from '../components/CrisisMap';
 import ChatPrompt from '../components/ChatPrompt';
 import { ActionItem, ChangeItem, Divider, InfoBlock, SectionLabel, SourceTag, StatusBadge } from '../components/common';
+
+const defaultLayers: Record<LayerKey, boolean> = {
+  myLocation: true,
+  weatherAlerts: true,
+  wildfires: true,
+  evacWarning: false,
+  evacOrder: false,
+};
+
+function locationLabel(data: CrisisDataState) {
+  const location = data.snapshot?.location;
+  return location
+    ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+    : data.locationError ?? 'Getting your location';
+}
+
+function syncLabel(data: CrisisDataState) {
+  if (data.loading) return 'Refreshing official sources';
+  if (!data.snapshot) return 'No live data available';
+  return `${data.snapshot.stale ? 'Last available data' : 'Updated'} ${new Date(data.snapshot.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
 
 export default function HomeScreen({
   phase,
   setPhase,
   onNavigate,
+  crisisData,
 }: {
   phase: HomePhase;
   setPhase: (phase: HomePhase) => void;
   onNavigate: (tab: AppTab) => void;
+  crisisData: CrisisDataState;
 }) {
   if (phase === 'refreshing') {
-    return <RefreshingContent onComplete={() => setPhase('updated')} />;
+    return <RefreshingContent refresh={crisisData.refresh} onComplete={() => setPhase('no-crisis')} />;
   }
 
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {phase === 'no-crisis' ? (
-          <NoCrisisContent onRefresh={() => setPhase('refreshing')} />
+          <NoCrisisContent crisisData={crisisData} onRefresh={() => setPhase('refreshing')} />
         ) : (
           <CrisisContent
             phase={phase}
             onNavigate={onNavigate}
             onRefresh={() => setPhase('refreshing')}
+            crisisData={crisisData}
           />
         )}
       </ScrollView>
@@ -42,16 +66,18 @@ export default function HomeScreen({
 function Header({
   sync,
   onRefresh,
+  location,
 }: {
   sync: string;
   onRefresh: () => void;
+  location: string;
 }) {
   return (
     <View style={styles.header}>
       <View>
         <View style={styles.rowCenter}>
           <Text style={styles.locationIcon}>⌖</Text>
-          <Text style={styles.locationText}>San Jose, CA</Text>
+          <Text style={styles.locationText}>{location}</Text>
         </View>
         <Text style={styles.subtleText}>{sync}</Text>
       </View>
@@ -66,10 +92,12 @@ function CrisisContent({
   phase,
   onNavigate,
   onRefresh,
+  crisisData,
 }: {
   phase: 'crisis' | 'updated';
   onNavigate: (tab: AppTab) => void;
   onRefresh: () => void;
+  crisisData: CrisisDataState;
 }) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const isUpdated = phase === 'updated';
@@ -92,13 +120,12 @@ function CrisisContent({
   return (
     <View>
       <Header
-        sync={`${isUpdated ? 'Updated' : 'Last synced'} ${
-          isUpdated ? 'Just now' : '2:14 PM'
-        }`}
+        sync={syncLabel(crisisData)}
         onRefresh={onRefresh}
+        location={locationLabel(crisisData)}
       />
 
-      <CrisisMap compact onExpandMap={() => onNavigate('map')} />
+      <CrisisMap compact layers={defaultLayers} location={crisisData.snapshot?.location ?? null} features={crisisData.snapshot?.features ?? []} loading={crisisData.loading} stale={crisisData.snapshot?.stale} onExpandMap={() => onNavigate('map')} />
 
       <View style={styles.card}>
         <View style={styles.cardPadded}>
@@ -173,18 +200,21 @@ function CrisisContent({
   );
 }
 
-function NoCrisisContent({ onRefresh }: { onRefresh: () => void }) {
+function NoCrisisContent({ onRefresh, crisisData }: { onRefresh: () => void; crisisData: CrisisDataState }) {
+  const features = crisisData.snapshot?.features ?? [];
+  const unavailable = crisisData.snapshot
+    ? Object.values(crisisData.snapshot.sourceHealth).filter(source => source.status === 'error').length
+    : 2;
   return (
     <View>
-      <Header sync="Last checked 2:14 PM" onRefresh={onRefresh} />
+      <Header sync={syncLabel(crisisData)} location={locationLabel(crisisData)} onRefresh={onRefresh} />
       <CrisisMap
         compact
-        layers={{
-          myLocation: true,
-          wildfire: false,
-          evacWarning: false,
-          evacOrder: false,
-        }}
+        layers={defaultLayers}
+        location={crisisData.snapshot?.location ?? null}
+        features={crisisData.snapshot?.features ?? []}
+        loading={crisisData.loading}
+        stale={crisisData.snapshot?.stale}
       />
       <View style={[styles.card, styles.clearCard]}>
         <View style={styles.clearIcon}>
@@ -192,30 +222,26 @@ function NoCrisisContent({ onRefresh }: { onRefresh: () => void }) {
         </View>
         <View style={styles.flex}>
           <StatusBadge level="CLEAR" />
-          <Text style={styles.clearText}>No immediate threats found near you</Text>
+          <Text style={styles.clearText}>{features.length ? `${features.length} official map feature${features.length === 1 ? '' : 's'} found` : unavailable ? 'Live sources are currently unavailable' : 'No mapped threats found for your location'}</Text>
         </View>
       </View>
       <SectionLabel>Nearby activity</SectionLabel>
       <View style={styles.card}>
-        {[
-          ['M3.1 earthquake — 47 miles away', 'No action needed · 38 min ago'],
-          ['Red flag warning — high fire risk', 'Dry winds through Thursday · NWS'],
-          ['Minor coastal flooding advisory', 'Santa Cruz area · Not near you'],
-        ].map(([title, sub]) => (
-          <View key={title} style={styles.activityItem}>
+        {features.length ? features.slice(0, 5).map(feature => (
+          <View key={feature.id} style={styles.activityItem}>
             <Text style={styles.activityMark}>•</Text>
             <View style={styles.flex}>
-              <Text style={styles.activityTitle}>{title}</Text>
-              <Text style={styles.subtleText}>{sub}</Text>
+              <Text style={styles.activityTitle}>{feature.title}</Text>
+              <Text style={styles.subtleText}>{feature.sourceName} · {new Date(feature.updatedAt).toLocaleString()}</Text>
             </View>
           </View>
-        ))}
+        )) : <View style={styles.activityItem}><Text style={styles.subtleText}>{unavailable ? 'Refresh again later. Missing data is never treated as an all-clear.' : 'Official sources returned no mapped features for this point.'}</Text></View>}
       </View>
     </View>
   );
 }
 
-function RefreshingContent({ onComplete }: { onComplete: () => void }) {
+function RefreshingContent({ onComplete, refresh }: { onComplete: () => void; refresh: () => Promise<void> }) {
   const [visibleSteps, setVisibleSteps] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -227,13 +253,18 @@ function RefreshingContent({ onComplete }: { onComplete: () => void }) {
         setCurrentStep(index);
       }, delay),
     );
-    const doneTimer = setTimeout(onComplete, 3600);
+    let cancelled = false;
+    const started = Date.now();
+    refresh().finally(() => {
+      const remaining = Math.max(0, 1000 - (Date.now() - started));
+      setTimeout(() => { if (!cancelled) onComplete(); }, remaining);
+    });
 
     return () => {
       timers.forEach(clearTimeout);
-      clearTimeout(doneTimer);
+      cancelled = true;
     };
-  }, [onComplete]);
+  }, [onComplete, refresh]);
 
   return (
     <View style={styles.refreshingScreen}>

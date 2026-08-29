@@ -73,9 +73,8 @@ export const DEFAULT_RESPONSE = {
 
 export const LAYERS: { key: LayerKey; label: string; color: string }[] = [
   { key: 'myLocation', label: 'My Location', color: COLORS.blue },
-  { key: 'wildfire', label: 'Wildfire', color: '#DC5012' },
-  { key: 'evacWarning', label: 'Evac Warning', color: COLORS.orange },
-  { key: 'evacOrder', label: 'Evac Order', color: COLORS.red },
+  { key: 'weatherAlerts', label: 'NWS Alerts', color: COLORS.orange },
+  { key: 'wildfires', label: 'Wildfires', color: '#DC5012' },
 ];
 
 export const SHEET_CONTENT = {

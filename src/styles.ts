@@ -355,6 +355,39 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  testModeToggle: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    backgroundColor: COLORS.soft,
+  },
+  testModeToggleActive: {
+    borderColor: COLORS.blue,
+    backgroundColor: '#EAF1FF',
+  },
+  testModeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.muted,
+  },
+  testModeDotActive: {
+    backgroundColor: COLORS.blue,
+  },
+  testModeText: {
+    color: COLORS.body,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  testModeTextActive: {
+    color: COLORS.blue,
+  },
   roundButton: {
     width: 32,
     height: 32,
@@ -507,6 +540,65 @@ export const styles = StyleSheet.create({
     backgroundColor: '#DED9CF',
     overflow: 'hidden',
     position: 'relative',
+  },
+  liveMap: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  mapStatus: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: 10,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  mapStatusText: {
+    color: COLORS.body,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  testModeBanner: {
+    position: 'absolute',
+    top: 12,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderWidth: 1,
+    borderColor: COLORS.blue,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  testModeBannerTitle: {
+    color: COLORS.blue,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  testModeBannerText: {
+    color: COLORS.body,
+    fontSize: 9,
+    marginTop: 2,
+    maxWidth: 280,
+    textAlign: 'center',
+  },
+  locationRetryButton: {
+    position: 'absolute',
+    top: 78,
+    alignSelf: 'center',
+    backgroundColor: COLORS.blue,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  locationRetryText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   compactMap: {
     height: 192,
@@ -930,21 +1022,24 @@ export const styles = StyleSheet.create({
 
 export const layerChipStyles = StyleSheet.create<Record<LayerKey, { borderColor: string }>>({
   myLocation: { borderColor: COLORS.blue },
-  wildfire: { borderColor: '#DC5012' },
+  weatherAlerts: { borderColor: COLORS.orange },
+  wildfires: { borderColor: '#DC5012' },
   evacWarning: { borderColor: COLORS.orange },
   evacOrder: { borderColor: COLORS.red },
 });
 
 export const layerDotStyles = StyleSheet.create<Record<LayerKey, { backgroundColor: string }>>({
   myLocation: { backgroundColor: COLORS.blue },
-  wildfire: { backgroundColor: '#DC5012' },
+  weatherAlerts: { backgroundColor: COLORS.orange },
+  wildfires: { backgroundColor: '#DC5012' },
   evacWarning: { backgroundColor: COLORS.orange },
   evacOrder: { backgroundColor: COLORS.red },
 });
 
 export const layerTextStyles = StyleSheet.create<Record<LayerKey, { color: string }>>({
   myLocation: { color: COLORS.blue },
-  wildfire: { color: '#DC5012' },
+  weatherAlerts: { color: COLORS.orange },
+  wildfires: { color: '#DC5012' },
   evacWarning: { color: COLORS.orange },
   evacOrder: { color: COLORS.red },
 });

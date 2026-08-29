@@ -1,88 +1,97 @@
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useReducer, useRef } from 'react';
+import { Platform, Pressable, Text, View } from 'react-native';
+import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from 'react-native-maps';
 import { COLORS } from '../constants';
 import { styles } from '../styles';
-import type { LayerKey } from '../types';
+import type { CrisisFeature, LayerKey, Position } from '../types';
 import { LegendRow } from './common';
+import { initialMapLifecycle, reduceMapLifecycle } from '../services/mapLifecycle';
+import type { MapLifecycle } from '../services/mapLifecycle';
 
-export default function CrisisMap({
-  compact = false,
-  layers = {
-    myLocation: true,
-    wildfire: true,
-    evacWarning: true,
-    evacOrder: true,
-  },
-  onExpandMap,
-  onTapWildfire,
-  onTapEvacWarning,
-  onTapEvacOrder,
-}: {
+type Coordinate = { latitude: number; longitude: number };
+const coordinate = ([longitude, latitude]: [number, number]): Coordinate => ({ latitude, longitude });
+
+function FeatureOverlay({ feature, onPress }: { feature: CrisisFeature; onPress: () => void }) {
+  const color = feature.kind === 'wildfire' ? '#DC5012' : COLORS.orange;
+  if (feature.geometry.type === 'Point') {
+    return <Marker coordinate={coordinate(feature.geometry.coordinates)} title={feature.title} onPress={onPress} pinColor={color} />;
+  }
+  const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+  return <>{polygons.map((polygon, index) => (
+    <Polygon
+      key={`${feature.id}:${index}`}
+      coordinates={polygon[0].map(coordinate)}
+      holes={polygon.slice(1).map(ring => ring.map(coordinate))}
+      strokeColor={color}
+      fillColor={feature.kind === 'wildfire' ? 'rgba(220,80,18,0.20)' : 'rgba(196,123,14,0.18)'}
+      strokeWidth={2}
+      tappable
+      onPress={onPress}
+    />
+  ))}</>;
+}
+
+export default function CrisisMap({ compact = false, layers, location, features = [], loading = false, stale = false, onExpandMap, onSelectFeature, onMapLifecycleChange }: {
   compact?: boolean;
-  layers?: Record<LayerKey, boolean>;
+  layers: Record<LayerKey, boolean>;
+  location: Position | null;
+  features?: CrisisFeature[];
+  loading?: boolean;
+  stale?: boolean;
   onExpandMap?: () => void;
-  onTapWildfire?: () => void;
-  onTapEvacWarning?: () => void;
-  onTapEvacOrder?: () => void;
+  onSelectFeature?: (feature: CrisisFeature) => void;
+  onMapLifecycleChange?: (lifecycle: MapLifecycle) => void;
 }) {
+  const map = useRef<MapView>(null);
+  const [mapLifecycle, dispatchMapLifecycle] = useReducer(reduceMapLifecycle, initialMapLifecycle);
+  const visibleFeatures = useMemo(() => features.filter(feature =>
+    (feature.kind === 'wildfire' && layers.wildfires) ||
+    (feature.kind === 'weatherAlert' && layers.weatherAlerts) ||
+    (feature.kind === 'evacWarning' && layers.evacWarning) ||
+    (feature.kind === 'evacOrder' && layers.evacOrder),
+  ), [features, layers]);
+
+  useEffect(() => {
+    onMapLifecycleChange?.(mapLifecycle);
+    if (__DEV__) console.info(`[CrisisMap] ${mapLifecycle.phase}; renderer=${mapLifecycle.renderer}; fallback=${mapLifecycle.fallbackAttempted}`);
+  }, [mapLifecycle, onMapLifecycleChange]);
+
+  useEffect(() => {
+    if (mapLifecycle.phase !== 'ready') return;
+    const timer = setTimeout(() => dispatchMapLifecycle({ type: 'loadTimeout' }), 8000);
+    return () => clearTimeout(timer);
+  }, [mapLifecycle.phase, mapLifecycle.mount]);
+
+  useEffect(() => {
+    if (location && mapLifecycle.phase === 'ready') map.current?.animateToRegion({ latitude: location.latitude, longitude: location.longitude, latitudeDelta: compact ? 0.35 : 0.7, longitudeDelta: compact ? 0.35 : 0.7 }, 500);
+  }, [compact, location, mapLifecycle.mount, mapLifecycle.phase]);
+
   return (
     <View style={[styles.crisisMap, compact ? styles.compactMap : styles.largeMap]}>
-      <View style={styles.mapBlockA} />
-      <View style={styles.mapBlockB} />
-      <View style={styles.mapBlockC} />
-      <View style={styles.mapParkOne} />
-      <View style={styles.mapParkTwo} />
-      <View style={styles.creek} />
-      {[48, 84, 138, 176, 216, 240, 260].map(top => (
-        <View key={`h-${top}`} style={[styles.roadH, { top }]} />
-      ))}
-      {[55, 96, 150, 200, 235, 320, 365].map(left => (
-        <View key={`v-${left}`} style={[styles.roadV, { left }]} />
-      ))}
-      <View style={styles.diagonalRoad} />
-
-      {layers.evacWarning && (
-        <Pressable
-          onPress={onTapEvacWarning}
-          style={[styles.zone, styles.warningZone]}
-        />
-      )}
-      {layers.evacOrder && (
-        <Pressable onPress={onTapEvacOrder} style={[styles.zone, styles.orderZone]} />
-      )}
-      {layers.wildfire && (
-        <Pressable onPress={onTapWildfire} style={styles.firePerimeter}>
-          <Text style={styles.fireMarker}>▲</Text>
-        </Pressable>
-      )}
-      {layers.wildfire && layers.myLocation && (
-        <>
-          <View style={styles.distanceLine} />
-          <View style={styles.distanceBadge}>
-            <Text style={styles.distanceBadgeText}>8.4 mi</Text>
-          </View>
-        </>
-      )}
-      {layers.myLocation && (
-        <View style={styles.myLocation}>
-          <View style={styles.myLocationInner} />
-        </View>
-      )}
-
-      {compact && (
-        <View style={styles.legend}>
-          <LegendRow color={COLORS.orange} label="Evac Warning" />
-          <LegendRow color={COLORS.red} label="Evac Order" />
-          <LegendRow color="#DC5012" label="Fire Perimeter" />
-          <LegendRow color={COLORS.blue} label="Your Location" />
-        </View>
-      )}
-      {compact && onExpandMap && (
-        <Pressable onPress={onExpandMap} style={styles.expandButton}>
-          <Text style={styles.expandText}>⛶ Full map</Text>
-        </Pressable>
-      )}
-      <Text style={styles.attribution}>© OpenStreetMap</Text>
+      <MapView
+        key={`google-map-${mapLifecycle.mount}`}
+        ref={map}
+        provider={PROVIDER_GOOGLE}
+        googleRenderer={Platform.OS === 'android' ? mapLifecycle.renderer : undefined}
+        mapType="standard"
+        style={styles.liveMap}
+        initialRegion={{ latitude: location?.latitude ?? 37.0902, longitude: location?.longitude ?? -95.7129, latitudeDelta: location ? 0.35 : 45, longitudeDelta: location ? 0.35 : 45 }}
+        showsUserLocation={Boolean(location && layers.myLocation)}
+        showsMyLocationButton={false}
+        toolbarEnabled={false}
+        loadingEnabled
+        loadingBackgroundColor="#E8E6DF"
+        onMapReady={() => dispatchMapLifecycle({ type: 'ready' })}
+        onMapLoaded={() => dispatchMapLifecycle({ type: 'loaded' })}>
+        {visibleFeatures.map(feature => <FeatureOverlay key={feature.id} feature={feature} onPress={() => onSelectFeature?.(feature)} />)}
+      </MapView>
+      {compact && <View style={styles.legend} pointerEvents="none">
+        {layers.weatherAlerts && <LegendRow color={COLORS.orange} label="NWS Alert" />}
+        {layers.wildfires && <LegendRow color="#DC5012" label="Fire Perimeter" />}
+        {layers.myLocation && <LegendRow color={COLORS.blue} label="Your Location" />}
+      </View>}
+      {(loading || stale) && <View style={styles.mapStatus} pointerEvents="none"><Text style={styles.mapStatusText}>{loading ? 'Refreshing official data…' : 'Showing last available data'}</Text></View>}
+      {compact && onExpandMap && <Pressable onPress={onExpandMap} style={styles.expandButton}><Text style={styles.expandText}>⛶ Full map</Text></Pressable>}
     </View>
   );
 }
