@@ -25,10 +25,9 @@ export const STATUS_CONFIG: Record<StatusLevel, { bg: string; text: string }> = 
 
 export const REFRESH_STEPS = [
   'Getting your location',
-  'Checking official weather alerts',
-  'Checking nearby wildfires',
-  'Checking recent earthquakes',
+  'Checking for alerts nearby',
   'Comparing with your previous update',
+  'Generating action plan',
 ];
 
 export const SUGGESTED_PROMPTS = [
