@@ -22,6 +22,9 @@ DerivedData
 *.xcuserstate
 **/.xcode.env.local
 
+# AgentCore local files / generated state
+backend/**/.venv/
+
 # Android/IntelliJ
 #
 build/

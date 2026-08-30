@@ -7,7 +7,10 @@
     "ios": "react-native run-ios --port 6767",
     "lint": "eslint .",
     "start": "react-native start --port 6767",
-    "test": "jest"
+    "test": "jest",
+    "backend:dev": "cd backend/CrisisBackend && agentcore dev",
+    "backend:deploy": "cd backend/CrisisBackend && agentcore deploy",
+    "backend:status": "cd backend/CrisisBackend && agentcore status"
   },
   "dependencies": {
     "@react-native-community/geolocation": "^3.4.0",
