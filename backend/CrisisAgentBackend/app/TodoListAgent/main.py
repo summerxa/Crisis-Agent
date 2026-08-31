@@ -1,42 +1,106 @@
-from typing import Any
+from typing import Any, Literal
 from collections import OrderedDict
-from strands import Agent, tool
-import asyncio
+from strands import Agent
+import re
+from pydantic import BaseModel, Field, field_validator
 from strands.agent.conversation_manager.null_conversation_manager import NullConversationManager
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
-from mcp_client.client import get_streamable_http_mcp_client
+from mcp_client.client import get_web_search_mcp_client
 
 app = BedrockAgentCoreApp()
 log = app.logger
 
-# Define a Streamable HTTP MCP Client
-mcp_clients = [get_streamable_http_mcp_client()]
+# Define MCP clients used by the model.
+mcp_clients = [get_web_search_mcp_client()]
 
 DEFAULT_SYSTEM_PROMPT = """
-You are a helpful assistant. Use tools when appropriate.
+You are a disaster response planning agent. You will receive weather and natural disaster data from assorted sources. Tell the user what they should do in response.
+Use web search when you need current response guidance, official status confirmation, evacuation language, shelter or supply guidance, or recovery instructions.
+Prefer official emergency-management and high-authority sources such as FEMA, Ready.gov, NOAA/NWS, local emergency management, CDC, and state or county emergency pages.
+All information stated should be backed up by at least one consulted web source.
+
+Classify the user's current state as exactly one of:
+- CLEAR: no disasters nearby, no preparation needed.
+- AWARE: disaster nearby; no immediate action needed, but monitor updates.
+- PREPARE: disaster nearby; start preparing for evacuation or emergency response.
+- ACT: immediate emergency; evacuation order issued for the area or danger is very close.
+- RECOVER: disaster has passed; monitor updates, but there is no immediate emergency.
+
+Output:
+- state: the classification.
+- subtitle: a short official-status-based subtitle; if no official status exists, say so.
+- description: 1-2 sentences describing the user's current state.
+- action_items: at most 10 practical actions, each with one relevant emoji, a short initial-view description, a longer detailed description, and the names of the source(s) that you consulted for this action item.
+- disaster_state_writeup: concise context for other agents summarizing the disaster state.
+- disaster_response_writeup: concise context for other agents explaining how the user should prepare or respond.
 
 """
+
+
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F1E6-\U0001F1FF"
+    "\U0001F300-\U0001FAFF"
+    "\U00002600-\U000027BF"
+    "]"
+)
+
+
+class ActionItem(BaseModel):
+    emoji: str = Field(description="A single emoji related to the action item.")
+    short_description: str = Field(description="Short text for the initial action item view.")
+    long_description: str = Field(description="Detailed instructions for the action item.")
+    citation: list[str] = Field(description="Names of the web source(s) cited for the action item.")
+
+    @field_validator("emoji", "short_description", "long_description")
+    @classmethod
+    def require_text(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("field must be a non-empty string")
+        return value.strip()
+
+    @field_validator("emoji")
+    @classmethod
+    def require_emoji(cls, value: str) -> str:
+        if not EMOJI_PATTERN.search(value):
+            raise ValueError("emoji must contain an emoji")
+        return value.strip()
+
+    @field_validator("citation")
+    @classmethod
+    def require_citation(cls, value: list[str]) -> list[str]:
+        citations = [citation.strip() for citation in value if citation and citation.strip()]
+        if not citations:
+            raise ValueError("citation must be non-empty")
+        return citations
+
+
+class TodoListOutput(BaseModel):
+    state: Literal["CLEAR", "AWARE", "PREPARE", "ACT", "RECOVER"]
+    subtitle: str
+    description: str
+    action_items: list[ActionItem] = Field(max_length=10)
+    disaster_state_writeup: str
+    disaster_response_writeup: str
+
+    @field_validator("action_items")
+    @classmethod
+    def require_action_items_max(cls, value: list[ActionItem]) -> list[ActionItem]:
+        if len(value) > 10:
+            raise ValueError("action_items must not exceed 10 items")
+        return value
 
 
 # Define a collection of tools used by the model
 tools = []
 
-_INLINE_FUNCTION_NAMES = set()
-
-# Define a simple function tool
-@tool
-def add_numbers(a: int, b: int) -> int:
-    """Return the sum of two numbers"""
-    return a+b
-tools.append(add_numbers)
-
-
-
 # Add MCP client to tools if available
 for mcp_client in mcp_clients:
     if mcp_client:
         tools.append(mcp_client)
+
+_INLINE_FUNCTION_NAMES = set()
 
 
 def _make_conversation_manager():
@@ -58,6 +122,7 @@ def agent_factory():
         cache[session_id] = Agent(
             model=load_model(),
             system_prompt=DEFAULT_SYSTEM_PROMPT,
+            structured_output_model=TodoListOutput,
             tools=tools,
             conversation_manager=_make_conversation_manager(),
             hooks=[

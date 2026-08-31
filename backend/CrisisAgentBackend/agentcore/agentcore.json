@@ -32,7 +32,29 @@
   "credentials": [],
   "evaluators": [],
   "onlineEvalConfigs": [],
-  "agentCoreGateways": [],
+  "agentCoreGateways": [
+    {
+      "name": "disaster-response-search",
+      "protocolType": "MCP",
+      "description": "Managed web search for disaster response guidance",
+      "authorizerType": "AWS_IAM",
+      "enableSemanticSearch": true,
+      "exceptionLevel": "NONE",
+      "targets": [
+        {
+          "name": "DisasterWebSearch",
+          "targetType": "connector",
+          "connectorId": "web-search",
+          "configurations": [
+            {
+              "name": "WebSearch",
+              "description": "Search current web sources for disaster response guidance"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "policyEngines": [],
   "configBundles": [],
   "abTests": [],
