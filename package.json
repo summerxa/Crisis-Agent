@@ -8,9 +8,10 @@
     "lint": "eslint .",
     "start": "react-native start --port 6767",
     "test": "jest",
-    "backend:dev": "cd backend/CrisisBackend && agentcore dev",
-    "backend:deploy": "cd backend/CrisisBackend && agentcore deploy",
-    "backend:status": "cd backend/CrisisBackend && agentcore status"
+    "backend:invoke": "cd backend/CrisisAgentBackend && env -u INIT_CWD -u npm_package_json agentcore invoke",
+    "backend:dev": "cd backend/CrisisAgentBackend && env -u INIT_CWD -u npm_package_json agentcore dev",
+    "backend:deploy": "cd backend/CrisisAgentBackend && env -u INIT_CWD -u npm_package_json agentcore deploy",
+    "backend:status": "cd backend/CrisisAgentBackend && env -u INIT_CWD -u npm_package_json agentcore status"
   },
   "dependencies": {
     "@react-native-community/geolocation": "^3.4.0",
