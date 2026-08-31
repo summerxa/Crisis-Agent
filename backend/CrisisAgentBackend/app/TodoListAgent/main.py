@@ -54,7 +54,7 @@ class ActionItem(BaseModel):
     emoji: str = Field(description="A single emoji related to the action item.")
     short_description: str = Field(description="Short text for the initial action item view.")
     long_description: str = Field(description="Detailed instructions for the action item.")
-    citation: list[str] = Field(description="Names of the web source(s) cited for the action item.")
+    citation: list[str] = Field(description="Names of the web source(s) cited for the action item.", min_length=1)
 
     @field_validator("emoji", "short_description", "long_description")
     @classmethod
@@ -83,8 +83,8 @@ class TodoListOutput(BaseModel):
     state: Literal["CLEAR", "AWARE", "PREPARE", "ACT", "RECOVER"]
     subtitle: str
     description: str
-    change_items: list[str]
-    action_items: list[ActionItem] = Field(max_length=10)
+    change_items: list[str] = Field(min_length=1, max_length=5)
+    action_items: list[ActionItem] = Field(max_length=5)
     disaster_state_writeup: str
     disaster_response_writeup: str
 

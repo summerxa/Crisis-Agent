@@ -23,13 +23,13 @@ Prefer official emergency-management and high-authority sources.
 Output:
 - citations: non-empty list of cited external source names. All factual guidance must be verified by these sources.
 - answer: direct answer to the user's question.
-- follow_up_questions: at most 5 useful follow-up questions the user could ask.
+- follow_up_questions: useful follow-up questions the user could ask.
 
 """
 
 
 class ChatOutput(BaseModel):
-    citations: list[str]
+    citations: list[str] = Field(min_length=1)
     answer: str
     follow_up_questions: list[str] = Field(max_length=5)
 
