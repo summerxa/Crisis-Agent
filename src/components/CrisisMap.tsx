@@ -31,13 +31,15 @@ function FeatureOverlay({ feature, onPress }: { feature: CrisisFeature; onPress:
   ))}</>;
 }
 
-export default function CrisisMap({ compact = false, layers, location, features = [], loading = false, stale = false, onExpandMap, onSelectFeature, onMapLifecycleChange }: {
+export default function CrisisMap({ compact = false, layers, location, simulatedPosition = false, features = [], loading = false, stale = false, statusMessage, onExpandMap, onSelectFeature, onMapLifecycleChange }: {
   compact?: boolean;
   layers: Record<LayerKey, boolean>;
   location: Position | null;
+  simulatedPosition?: boolean;
   features?: CrisisFeature[];
   loading?: boolean;
   stale?: boolean;
+  statusMessage?: string;
   onExpandMap?: () => void;
   onSelectFeature?: (feature: CrisisFeature) => void;
   onMapLifecycleChange?: (lifecycle: MapLifecycle) => void;
@@ -63,7 +65,7 @@ export default function CrisisMap({ compact = false, layers, location, features 
   }, [mapLifecycle.phase, mapLifecycle.mount]);
 
   useEffect(() => {
-    if (location && mapLifecycle.phase === 'ready') map.current?.animateToRegion({ latitude: location.latitude, longitude: location.longitude, latitudeDelta: compact ? 0.35 : 0.7, longitudeDelta: compact ? 0.35 : 0.7 }, 500);
+    if (location && (mapLifecycle.phase === 'ready' || mapLifecycle.phase === 'loaded')) map.current?.animateToRegion({ latitude: location.latitude, longitude: location.longitude, latitudeDelta: compact ? 0.35 : 0.7, longitudeDelta: compact ? 0.35 : 0.7 }, 500);
   }, [compact, location, mapLifecycle.mount, mapLifecycle.phase]);
 
   return (
@@ -76,7 +78,7 @@ export default function CrisisMap({ compact = false, layers, location, features 
         mapType="standard"
         style={styles.liveMap}
         initialRegion={{ latitude: location?.latitude ?? 37.0902, longitude: location?.longitude ?? -95.7129, latitudeDelta: location ? 0.35 : 45, longitudeDelta: location ? 0.35 : 45 }}
-        showsUserLocation={Boolean(location && layers.myLocation)}
+        showsUserLocation={Boolean(location && layers.myLocation && !simulatedPosition)}
         showsMyLocationButton={false}
         toolbarEnabled={false}
         loadingEnabled
@@ -84,13 +86,18 @@ export default function CrisisMap({ compact = false, layers, location, features 
         onMapReady={() => dispatchMapLifecycle({ type: 'ready' })}
         onMapLoaded={() => dispatchMapLifecycle({ type: 'loaded' })}>
         {visibleFeatures.map(feature => <FeatureOverlay key={feature.id} feature={feature} onPress={() => onSelectFeature?.(feature)} />)}
+        {simulatedPosition && location && layers.myLocation && (
+          <Marker coordinate={location} title="Test location" description="This is not your current GPS position">
+            <View style={styles.testLocationMarker}><Text style={styles.testLocationMarkerText}>T</Text></View>
+          </Marker>
+        )}
       </MapView>
       {compact && <View style={styles.legend} pointerEvents="none">
         {layers.weatherAlerts && <LegendRow color={COLORS.orange} label="NWS Alert" />}
         {layers.wildfires && <LegendRow color="#DC5012" label="Fire Perimeter" />}
         {layers.myLocation && <LegendRow color={COLORS.blue} label="Your Location" />}
       </View>}
-      {(loading || stale) && <View style={styles.mapStatus} pointerEvents="none"><Text style={styles.mapStatusText}>{loading ? 'Refreshing official data…' : 'Showing last available data'}</Text></View>}
+      {(loading || stale) && <View style={styles.mapStatus} pointerEvents="none"><Text style={styles.mapStatusText}>{loading ? 'Refreshing official data…' : statusMessage ?? 'Showing last available data'}</Text></View>}
       {compact && onExpandMap && <Pressable onPress={onExpandMap} style={styles.expandButton}><Text style={styles.expandText}>⛶ Full map</Text></Pressable>}
     </View>
   );

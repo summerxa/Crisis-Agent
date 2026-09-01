@@ -3,7 +3,9 @@ import { parseGeometry } from './geometry';
 
 type Json = Record<string, any>;
 const WFIGS_URL =
-  'https://services3.arcgis.com/T4QMspbfLg3qTGWY/ArcGIS/rest/services/WFIGS_Interagency_Perimeters_YearToDate/FeatureServer/0/query';
+  'https://services3.arcgis.com/T4QMspbfLg3qTGWY/ArcGIS/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query';
+const ACTIVE_WILDFIRE_FILTER =
+  "attr_IncidentTypeCategory = 'WF' AND attr_ActiveFireCandidate = 1 AND attr_FireOutDateTime IS NULL";
 
 function text(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
@@ -52,30 +54,48 @@ async function fetchWfigs(position: Position): Promise<CrisisFeature[]> {
     position.latitude + radius,
   ].join(',');
   const params = new URLSearchParams({
-    where: '1=1', geometry: envelope, geometryType: 'esriGeometryEnvelope',
+    where: ACTIVE_WILDFIRE_FILTER, geometry: envelope, geometryType: 'esriGeometryEnvelope',
     inSR: '4326', outSR: '4326', spatialRel: 'esriSpatialRelIntersects',
     outFields: '*', returnGeometry: 'true', f: 'geojson',
   });
   const response = await fetch(`${WFIGS_URL}?${params}`);
   if (!response.ok) throw new Error(`WFIGS returned ${response.status}`);
   const body = (await response.json()) as Json;
-  const now = new Date().toISOString();
+  return parseWfigsFeatures(body, new Date().toISOString());
+}
+
+function numeric(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function parseWfigsFeatures(body: Json, now: string): CrisisFeature[] {
   return (Array.isArray(body.features) ? body.features : []).flatMap((item: Json, index: number) => {
     const geometry = parseGeometry(item.geometry);
     const p = item.properties ?? {};
+    const isActiveWildfire =
+      p.attr_IncidentTypeCategory === 'WF' &&
+      p.attr_ActiveFireCandidate === 1 &&
+      (p.attr_FireOutDateTime === null || p.attr_FireOutDateTime === undefined);
+    if (!geometry || !isActiveWildfire) return [];
     const rawId = text(p.GlobalID ?? p.OBJECTID ?? item.id, String(index));
-    const title = text(p.IncidentName ?? p.poly_IncidentName, 'Wildfire perimeter');
-    if (!geometry) return [];
+    const title = text(p.attr_IncidentName ?? p.poly_IncidentName, 'Wildfire perimeter');
+    const containment = numeric(p.attr_PercentContained);
+    const acres = numeric(p.poly_GISAcres ?? p.attr_IncidentSize);
+    const status = containment !== null && containment >= 0 && containment <= 100
+      ? `Active wildfire · ${Math.round(containment)}% contained`
+      : 'Active wildfire';
     return [{
       id: `wfigs:${rawId}`,
       kind: 'wildfire' as const,
       geometry,
       title,
-      status: text(p.IncidentTypeCategory ?? p.poly_IncidentTypeCategory, 'Active'),
-      description: p.GISAcres ? `${Math.round(Number(p.GISAcres)).toLocaleString()} acres` : undefined,
-      sourceName: 'NIFC WFIGS',
+      status,
+      description: acres !== null ? `${Math.round(acres).toLocaleString()} acres` : undefined,
+      sourceName: 'NIFC WFIGS Current Perimeters',
       sourceUrl: WFIGS_URL.replace('/query', ''),
-      updatedAt: iso(p.DateCurrent ?? p.poly_DateCurrent ?? p.EditDate, now),
+      updatedAt: iso(p.poly_PolygonDateTime ?? p.poly_DateCurrent ?? p.attr_ModifiedOnDateTime_dt, now),
       rawSourceId: rawId,
     }];
   });
