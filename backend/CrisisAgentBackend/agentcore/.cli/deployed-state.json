@@ -1,3 +1,36 @@
 {
-  "targets": {}
+  "targets": {
+    "default": {
+      "resources": {
+        "runtimes": {
+          "TodoListAgent": {
+            "runtimeId": "CrisisAgentBackend_TodoListAgent-KumH8T9OZN",
+            "runtimeArn": "arn:aws:bedrock-agentcore:us-east-1:195663985692:runtime/CrisisAgentBackend_TodoListAgent-KumH8T9OZN",
+            "roleArn": "arn:aws:iam::195663985692:role/AgentCore-CrisisAgentBack-ApplicationAgentTodoListA-qg5yo2lQmUBh"
+          },
+          "ChatAgent": {
+            "runtimeId": "CrisisAgentBackend_ChatAgent-BVT2Uk3QTp",
+            "runtimeArn": "arn:aws:bedrock-agentcore:us-east-1:195663985692:runtime/CrisisAgentBackend_ChatAgent-BVT2Uk3QTp",
+            "roleArn": "arn:aws:iam::195663985692:role/AgentCore-CrisisAgentBack-ApplicationAgentChatAgent-ir6pUp6Wt2tE"
+          }
+        },
+        "mcp": {
+          "gateways": {
+            "disaster-response-search": {
+              "gatewayId": "crisisagentbackend-disaster-response-search-oeehmjayti",
+              "gatewayArn": "arn:aws:bedrock-agentcore:us-east-1:195663985692:gateway/crisisagentbackend-disaster-response-search-oeehmjayti",
+              "gatewayUrl": "https://crisisagentbackend-disaster-response-search-oeehmjayti.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
+              "targets": {
+                "DisasterWebSearch": {
+                  "targetId": "DPQCQZTEEL"
+                }
+              }
+            }
+          }
+        },
+        "stackName": "AgentCore-CrisisAgentBackend-default",
+        "deployHash": "98d2cd6df186a867"
+      }
+    }
+  }
 }

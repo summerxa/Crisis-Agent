@@ -3,8 +3,17 @@ from collections import OrderedDict
 from strands import Agent
 import json
 import re
-from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field
 from strands.agent.conversation_manager.null_conversation_manager import NullConversationManager
+from strands.hooks import (
+    AfterToolCallEvent,
+    AfterToolsEvent,
+    BeforeModelCallEvent,
+    BeforeToolsEvent,
+    HookOrder,
+    HookRegistry,
+)
+from bedrock_agentcore.gateway.integrations.strands.plugins import AgentCoreToolSearchPlugin
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
 from mcp_client.client import get_web_search_mcp_client
@@ -14,6 +23,7 @@ log = app.logger
 
 # Define MCP clients used by the model.
 mcp_clients = [get_web_search_mcp_client()]
+log.info("Configured MCP clients: %d", sum(1 for mcp_client in mcp_clients if mcp_client))
 
 DEFAULT_SYSTEM_PROMPT = """
 You are a disaster response planning agent invoked when the user refreshes their status.
@@ -56,28 +66,6 @@ class ActionItem(BaseModel):
     long_description: str = Field(description="Detailed instructions for the action item.")
     citation: list[str] = Field(description="Names of the web source(s) cited for the action item.", min_length=1)
 
-    @field_validator("emoji", "short_description", "long_description")
-    @classmethod
-    def require_text(cls, value: str) -> str:
-        if not value or not value.strip():
-            raise ValueError("field must be a non-empty string")
-        return value.strip()
-
-    @field_validator("emoji")
-    @classmethod
-    def require_emoji(cls, value: str) -> str:
-        if not EMOJI_PATTERN.search(value):
-            raise ValueError("emoji must contain an emoji")
-        return value.strip()
-
-    @field_validator("citation")
-    @classmethod
-    def require_citation(cls, value: list[str]) -> list[str]:
-        citations = [citation.strip() for citation in value if citation and citation.strip()]
-        if not citations:
-            raise ValueError("citation must be non-empty")
-        return citations
-
 
 class TodoListOutput(BaseModel):
     state: Literal["CLEAR", "AWARE", "PREPARE", "ACT", "RECOVER"]
@@ -87,20 +75,6 @@ class TodoListOutput(BaseModel):
     action_items: list[ActionItem] = Field(max_length=5)
     disaster_state_writeup: str
     disaster_response_writeup: str
-
-    @field_validator("change_items")
-    @classmethod
-    def require_change_items_size(cls, value: list[str]) -> list[str]:
-        if len(value) > 5 or len(value) == 0:
-            raise ValueError("change_items must be length 1-5")
-        return [change_item.strip() for change_item in value if change_item and change_item.strip()]
-
-    @field_validator("action_items")
-    @classmethod
-    def require_action_items_max(cls, value: list[ActionItem]) -> list[ActionItem]:
-        if len(value) > 5:
-            raise ValueError("action_items must not exceed 5 items")
-        return value
 
 
 class Position(BaseModel):
@@ -197,18 +171,125 @@ tools = []
 for mcp_client in mcp_clients:
     if mcp_client:
         tools.append(mcp_client)
+log.info("Configured static tools/providers: %d", len(tools))
 
 _INLINE_FUNCTION_NAMES = set()
+REQUIRED_TOOL_NAMES = {"DisasterWebSearch___WebSearch"}
+STRUCTURED_OUTPUT_TOOL_NAME = TodoListOutput.__name__
 
 
 def _make_conversation_manager():
     return NullConversationManager()
 
-# Reuses one Agent per session_id so each session keeps its own in-process
-# conversation history (best-effort; resets on cold start). The cache is bounded
-# to 128 sessions with LRU eviction (least-recently-used is dropped and its
-# history reset) so a single process serving many sessions cannot leak history
-# between them or grow without limit. For durable history, attach a session manager.
+
+def _make_plugins():
+    gateway_plugins = [AgentCoreToolSearchPlugin(mcp_client=mcp_client) for mcp_client in mcp_clients if mcp_client]
+    log.info("Configured AgentCore tool-search plugins: %d", len(gateway_plugins))
+    return gateway_plugins
+
+
+def _registered_tool_names(agent: Agent) -> set[str]:
+    return set(agent.tool_registry.registry) | set(agent.tool_registry.dynamic_tools)
+
+
+class RequiredToolAssertion:
+    def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
+        registry.add_callback(BeforeModelCallEvent, self.assert_required_tools, order=HookOrder.SDK_LAST)
+
+    def assert_required_tools(self, event: BeforeModelCallEvent) -> None:
+        registered_tool_names = _registered_tool_names(event.agent)
+        missing_tool_names = REQUIRED_TOOL_NAMES - registered_tool_names
+        invocation_state = event.invocation_state
+        observed_required_tools = invocation_state.get("todo_required_tools_observed", False)
+        structured_output_only = registered_tool_names == {TodoListOutput.__name__}
+
+        log.info(
+            "Required tool assertion: required=%s available=%s observed=%s structured_output_only=%s projected_input_tokens=%s",
+            sorted(REQUIRED_TOOL_NAMES),
+            sorted(registered_tool_names),
+            observed_required_tools,
+            structured_output_only,
+            event.projected_input_tokens,
+        )
+
+        if not missing_tool_names:
+            invocation_state["todo_required_tools_observed"] = True
+            return
+
+        if observed_required_tools and structured_output_only:
+            log.info("Skipping required tool assertion during structured-output-only model pass")
+            return
+
+        if missing_tool_names:
+            raise RuntimeError(
+                "Required tool(s) are not registered: "
+                f"{sorted(missing_tool_names)}. Available tools: {sorted(registered_tool_names)}"
+            )
+
+
+class StructuredOutputTerminator:
+    def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
+        registry.add_callback(BeforeToolsEvent, self.keep_first_structured_output_call, order=HookOrder.SDK_FIRST)
+        registry.add_callback(AfterToolCallEvent, self.mark_structured_output_success)
+        registry.add_callback(AfterToolsEvent, self.end_after_structured_output)
+
+    def keep_first_structured_output_call(self, event: BeforeToolsEvent) -> None:
+        content = event.message.get("content", [])
+        if not isinstance(content, list):
+            return
+
+        if not any(
+            isinstance(block, dict)
+            and isinstance(block.get("toolUse"), dict)
+            and block["toolUse"].get("name") == STRUCTURED_OUTPUT_TOOL_NAME
+            for block in content
+        ):
+            return
+
+        kept_content = []
+        saw_structured_output = False
+        dropped_tool_names = []
+
+        for block in content:
+            tool_use = block.get("toolUse") if isinstance(block, dict) else None
+            if not isinstance(tool_use, dict):
+                kept_content.append(block)
+                continue
+
+            tool_name = tool_use.get("name")
+            if tool_name == STRUCTURED_OUTPUT_TOOL_NAME:
+                if not saw_structured_output:
+                    kept_content.append(block)
+                    saw_structured_output = True
+                else:
+                    dropped_tool_names.append(tool_name)
+                continue
+
+            dropped_tool_names.append(tool_name)
+
+        if saw_structured_output and len(kept_content) != len(content):
+            event.message["content"] = kept_content
+            log.warning(
+                "TodoListOutput requested; dropped other tool calls before terminating: %s",
+                dropped_tool_names,
+            )
+
+    def mark_structured_output_success(self, event: AfterToolCallEvent) -> None:
+        if event.tool_use.get("name") != STRUCTURED_OUTPUT_TOOL_NAME:
+            return
+        event.invocation_state["todo_structured_output_complete"] = True
+        log.info("TodoListOutput returned status=%s; marking invocation complete", event.result.get("status"))
+
+    def end_after_structured_output(self, event: AfterToolsEvent) -> None:
+        if event.invocation_state.get("todo_structured_output_complete"):
+            event.end_turn = "TodoListOutput returned; ending turn."
+            log.info("Ending TodoListAgent turn immediately after TodoListOutput")
+
+
+# Reuses one Agent per session_id so MCP tools are loaded once per warm process.
+# Message history is cleared at the start of each top-level invocation; the
+# current request can still keep tool-use/tool-result continuity while it runs.
+# The cache is bounded to 128 sessions with LRU eviction.
 def agent_factory():
     cache = OrderedDict()
     def get_or_create_agent(session_id):
@@ -217,13 +298,17 @@ def agent_factory():
             return cache[session_id]
         if len(cache) >= 128:
             cache.popitem(last=False)
+        log.info("Creating TodoListAgent for session_id=%s with %d static tools/providers", session_id, len(tools))
         cache[session_id] = Agent(
             model=load_model(),
             system_prompt=DEFAULT_SYSTEM_PROMPT,
             structured_output_model=TodoListOutput,
             tools=tools,
+            plugins=_make_plugins(),
             conversation_manager=_make_conversation_manager(),
             hooks=[
+                RequiredToolAssertion(),
+                StructuredOutputTerminator(),
             ],
         )
         return cache[session_id]
@@ -325,6 +410,7 @@ async def invoke(payload, context):
 
     session_id = getattr(context, 'session_id', 'default-session')
     agent = get_or_create_agent(session_id)
+    agent.messages.clear() # This agent doesn't use conversation history
 
     prompt = _extract_prompt(payload)
 
