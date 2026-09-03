@@ -78,8 +78,8 @@ export default function MapScreen({
       const allFailed = failedSources === 2;
       const message = allFailed
         ? 'Live official sources are unavailable. This is not an all-clear.'
-        : failedSources === 1
-          ? 'One official source failed. Results may be incomplete.'
+        : failedSources > 0
+          ? `${result.features.length} official source(s) failed. Results may be incomplete.`
           : result.features.length === 0
             ? 'Official sources returned no mapped threats for this test point.'
             : `${result.features.length} official map feature${result.features.length === 1 ? '' : 's'} found.`;
