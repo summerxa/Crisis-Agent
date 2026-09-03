@@ -204,7 +204,7 @@ def handler(event, context):
         if not isinstance(prompt, str) or not prompt.strip():
             return bad_request("prompt must be a non-empty string")
 
-        agent = body.get("agent")
+        agent = event["pathParameters"]["agent"]
         if not isinstance(agent, str) or agent.strip().lower() not in VALID_AGENTS:
             return bad_request(f"agent must be one of: {VALID_AGENTS}")
 

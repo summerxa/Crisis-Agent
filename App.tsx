@@ -8,6 +8,8 @@ import MapScreen from './src/screens/MapScreen';
 import { styles } from './src/styles';
 import type { AppTab, HomePhase } from './src/types';
 import { useCrisisData } from './src/hooks/useCrisisData';
+import "react-native-get-random-values";
+import "react-native-url-polyfill/auto";
 
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
