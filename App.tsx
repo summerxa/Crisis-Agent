@@ -9,8 +9,6 @@ import MapScreen from './src/screens/MapScreen';
 import { styles } from './src/styles';
 import type { AppTab, HomePhase } from './src/types';
 import { useCrisisData } from './src/hooks/useCrisisData';
-import { useChatAgent } from './src/hooks/useChatAgent';
-import { useTodoListAgent } from './src/hooks/useTodoListAgent';
 
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
@@ -43,8 +41,6 @@ function App() {
   const chatAgentSessionId = useRef(uuidv4()).current;
   const todoListAgentSessionId = useRef(uuidv4()).current;
   const crisisData = useCrisisData();
-  useChatAgent(chatAgentSessionId);
-  useTodoListAgent(todoListAgentSessionId);
 
   return (
     <SafeAreaProvider>

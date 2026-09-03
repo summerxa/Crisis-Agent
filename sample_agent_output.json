@@ -1,0 +1,26 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "sessionId": "676767676767676767676767676767676",
+    "response": {
+      "answer": "Important clarification: Earthquakes are measured on a magnitude scale from 0-10, so \"magnitude 67\" isn't possible—you likely mean magnitude 6.7, which is a strong earthquake. If shaking is happening RIGHT NOW, immediately DROP down onto your hands and knees (this prevents you from being knocked down), COVER your head and neck under a sturdy desk or table if nearby (or next to an interior wall away from windows if no shelter is available), and HOLD ON to your shelter or your head/neck until all shaking completely stops. If you're indoors, STAY INSIDE—do not run outside during shaking, as most injuries occur from falling objects and people tripping. If outdoors, move only a few steps to open space away from buildings, power lines, and trees, then drop, cover, and hold on. If driving, pull over safely away from bridges/overpasses, set your parking brake, and remain in your vehicle until shaking stops.",
+      "citations": [
+        "CDC - Safety Guidelines: During an Earthquake",
+        "American Red Cross - Earthquake Preparedness",
+        "USGS - What should I do DURING an earthquake",
+        "Earthquake Country Alliance - Drop, Cover, and Hold On",
+        "New Zealand Civil Defence - Drop, Cover and Hold"
+      ],
+      "follow_up_questions": [
+        "What should I do immediately after the earthquake shaking stops?",
+        "How do I check for gas leaks and structural damage after an earthquake?",
+        "What emergency supplies should I have prepared for earthquakes?",
+        "How should I respond to aftershocks following the main earthquake?",
+        "If I'm near the coast, when should I evacuate for potential tsunami risk?"
+      ]
+    }
+  }
+}
