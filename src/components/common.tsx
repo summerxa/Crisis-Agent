@@ -34,14 +34,31 @@ export function InfoBlock({
   );
 }
 
-export function ActionItem({ text, index }: { text: string; index: number }) {
-  const icons = ['🪪', '🔋', '🎒', '📡'];
+export function ActionItem({
+  text,
+  index,
+  detail,
+  icon,
+  citation,
+}: {
+  text: string;
+  index: number;
+  detail?: string;
+  icon?: string;
+  citation?: string[];
+}) {
+  const fallbackIcons = ['⚠️', '📍', '📡', 'ⓘ'];
+  const citationText = citation?.filter(Boolean).join(' · ');
   return (
     <View style={styles.actionItem}>
       <View style={styles.actionIcon}>
-        <Text style={styles.actionIconText}>{icons[index] ?? '•'}</Text>
+        <Text style={styles.actionIconText}>{icon ?? fallbackIcons[index] ?? 'ⓘ'}</Text>
       </View>
-      <Text style={styles.actionText}>{text}</Text>
+      <View style={styles.actionCopy}>
+        <Text style={styles.actionText}>{text}</Text>
+        {!!detail && <Text style={styles.actionDetail}>{detail}</Text>}
+        {!!citationText && <Text style={styles.actionCitation}>Source: {citationText}</Text>}
+      </View>
     </View>
   );
 }

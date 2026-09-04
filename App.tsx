@@ -40,11 +40,7 @@ class ErrorBoundary extends Component<
 function AppBody({ sessionId, isDarkMode }: { sessionId: string, isDarkMode: boolean }) {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [homePhase, setHomePhase] = useState<HomePhase>('no-crisis');
-  const crisisData = useCrisisData();
-
-  if (crisisData.locationAccess === 'denied') {
-    return <LocationPermissionWarning isDarkMode={isDarkMode} />;
-  }
+  const crisisData = useCrisisData({ sessionId });
 
   return (
     <>

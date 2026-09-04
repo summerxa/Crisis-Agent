@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { COLORS, REFRESH_STEPS } from '../constants';
 import { styles } from '../styles';
-import type { AppTab, CrisisDataState, HomePhase, LayerKey } from '../types';
+import type { AppTab, CrisisDataState, CrisisFeature, HomePhase, LayerKey, StatusLevel } from '../types';
 import CrisisMap from '../components/CrisisMap';
 import ChatPrompt from '../components/ChatPrompt';
 import { ActionItem, ChangeItem, Divider, InfoBlock, SectionLabel, SourceTag, StatusBadge } from '../components/common';
@@ -28,6 +28,105 @@ function syncLabel(data: CrisisDataState) {
   return `${data.snapshot.stale ? 'Last available data' : 'Updated'} ${new Date(data.snapshot.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 }
 
+const featureKindLabels: Record<CrisisFeature['kind'], string> = {
+  weatherAlert: 'Weather alert',
+  wildfire: 'Wildfire',
+  evacWarning: 'Evacuation warning',
+  evacOrder: 'Evacuation order',
+};
+
+const featureKindPriority: Record<CrisisFeature['kind'], number> = {
+  evacOrder: 0,
+  evacWarning: 1,
+  wildfire: 2,
+  weatherAlert: 3,
+};
+
+function formatTimestamp(value?: string) {
+  if (!value) return 'Time unavailable';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Time unavailable';
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function sourceHealthSummary(data: CrisisDataState) {
+  const health = data.snapshot?.sourceHealth;
+  if (!health) return 'Source status unavailable';
+
+  const sourceLabels = Object.entries(health).map(([name, source]) =>
+    `${name.toUpperCase()}: ${source.status}`,
+  );
+  return sourceLabels.join(' · ');
+}
+
+function uniqueFeatureSources(features: CrisisFeature[]) {
+  return Array.from(new Set(features.map(feature => feature.sourceName).filter(Boolean)));
+}
+
+function getPrimaryFeature(features: CrisisFeature[]) {
+  return [...features].sort((a, b) => {
+    const priority = featureKindPriority[a.kind] - featureKindPriority[b.kind];
+    if (priority !== 0) return priority;
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  })[0] ?? null;
+}
+
+function statusFromFeatures(features: CrisisFeature[]): StatusLevel {
+  if (features.some(feature => feature.kind === 'evacOrder')) return 'ACT';
+  if (features.some(feature => feature.kind === 'evacWarning' || feature.kind === 'wildfire')) return 'PREPARE';
+  if (features.some(feature => feature.kind === 'weatherAlert')) return 'AWARE';
+  return 'CLEAR';
+}
+
+function officialStatusBody(primaryFeature: CrisisFeature | null) {
+  if (!primaryFeature) return 'No mapped official threats found for this location';
+
+  const label = featureKindLabels[primaryFeature.kind];
+  return `${label}: ${primaryFeature.title}`;
+}
+
+function crisisDescription(data: CrisisDataState, features: CrisisFeature[]) {
+  const agentData = data.todoListAgent.data;
+  if (agentData?.description) return agentData.description;
+  if (data.todoListAgent.loading) return 'Generating a personalized crisis summary from official source data.';
+  if (data.todoListAgent.error) return data.todoListAgent.error;
+  if (features.length) return `${features.length} official map feature${features.length === 1 ? '' : 's'} found near your location.`;
+  if (data.snapshot?.stale) return 'Live sources are partially unavailable. Missing data is not treated as an all-clear.';
+  return 'Official sources returned no mapped threats for your location.';
+}
+
+function changeItems(data: CrisisDataState) {
+  const agentChanges = data.todoListAgent.data?.change_items.filter(Boolean);
+  if (agentChanges?.length) return agentChanges;
+
+  const previousCount = data.previousSnapshot?.features.length ?? 0;
+  const currentCount = data.snapshot?.features.length ?? 0;
+  if (data.loading) return ['Refreshing official sources'];
+  if (!data.previousSnapshot) return ['No previous refresh available for comparison'];
+  if (currentCount === previousCount) return ['Official feature count is unchanged since the last refresh'];
+  return [`Official feature count changed from ${previousCount} to ${currentCount}`];
+}
+
+function sourceRows(data: CrisisDataState) {
+  const features = data.snapshot?.features ?? [];
+  if (features.length) {
+    return features.slice(0, 6).map(feature => ({
+      name: `${feature.sourceName} - ${feature.title}`,
+      time: formatTimestamp(feature.updatedAt),
+    }));
+  }
+
+  return Object.entries(data.snapshot?.sourceHealth ?? {}).map(([name, health]) => ({
+    name: `${name.toUpperCase()} source ${health.status}`,
+    time: formatTimestamp(health.checkedAt),
+  })).concat(data.snapshot ? [] : [{ name: 'No source data available', time: 'Refresh needed' }]);
+}
+
 export default function HomeScreen({
   phase,
   setPhase,
@@ -46,16 +145,11 @@ export default function HomeScreen({
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {phase === 'no-crisis' ? (
-          <NoCrisisContent crisisData={crisisData} onRefresh={() => setPhase('refreshing')} />
-        ) : (
-          <CrisisContent
-            phase={phase}
-            onNavigate={onNavigate}
-            onRefresh={() => setPhase('refreshing')}
-            crisisData={crisisData}
-          />
-        )}
+        <CrisisContent
+          onNavigate={onNavigate}
+          onRefresh={() => setPhase('refreshing')}
+          crisisData={crisisData}
+        />
       </ScrollView>
 
       <ChatPrompt onPress={() => onNavigate('chat')} />
@@ -89,33 +183,28 @@ function Header({
 }
 
 function CrisisContent({
-  phase,
   onNavigate,
   onRefresh,
   crisisData,
 }: {
-  phase: 'crisis' | 'updated';
   onNavigate: (tab: AppTab) => void;
   onRefresh: () => void;
   crisisData: CrisisDataState;
 }) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const isUpdated = phase === 'updated';
-  const acres = isUpdated ? '4,200' : '3,100';
-  const contained = isUpdated ? '25%' : '15%';
-  const changes = isUpdated
-    ? [
-        'Fire grew by 1,100 acres (now 4,200 total)',
-        'Evacuation warning expanded south',
-        'New road closure reported on Almaden Expwy',
-        'Your evacuation status is unchanged',
-      ]
-    : [
-        'Canyon Fire reported by CAL FIRE',
-        'Evacuation warning issued for nearby zones',
-        'Wind shift reported — monitoring conditions',
-        'No road closures affecting your area yet',
-      ];
+  const snapshot = crisisData.snapshot;
+  const features = snapshot?.features ?? [];
+  const agentData = crisisData.todoListAgent.data;
+  const primaryFeature = getPrimaryFeature(features);
+  const statusLevel = agentData?.state ?? statusFromFeatures(features);
+  const sources = uniqueFeatureSources(features);
+  const actions = agentData?.action_items.filter(item => item.short_description) ?? [];
+  const changes = changeItems(crisisData);
+  const sourceAttribution = sources.length
+    ? `Source${sources.length === 1 ? '' : 's'}: ${sources.join(', ')}`
+    : sourceHealthSummary(crisisData);
+  const planBody = agentData?.subtitle
+    ?? (crisisData.todoListAgent.loading ? 'Generating action plan' : 'No generated action plan available');
 
   return (
     <View>
@@ -129,50 +218,52 @@ function CrisisContent({
 
       <View style={styles.card}>
         <View style={styles.cardPadded}>
-          <StatusBadge level="PREPARE" />
-          <Text style={styles.bodyText}>
-            An evacuation warning has been issued nearby. Your current location
-            is not under an evacuation order.
-          </Text>
+          <StatusBadge level={statusLevel} />
+          <Text style={styles.bodyText}>{crisisDescription(crisisData, features)}</Text>
         </View>
         <Divider />
         <InfoBlock
           accent={COLORS.navy}
           title="Official Status"
-          body="Evacuation warning nearby"
-          caption="Source: Santa Clara County Emergency Management"
+          body={officialStatusBody(primaryFeature)}
+          caption={sourceAttribution}
         />
         <Divider />
         <InfoBlock
           accent="#6366F1"
           title="Suggested action plan"
-          body="Generated by your crisis agent"
-          caption="Not official guidance"
+          body={planBody}
+          caption={crisisData.todoListAgent.error ?? 'Generated by your crisis agent · Not official guidance'}
         />
-        <View style={styles.fireStrip}>
+        <View style={styles.primaryFeatureStrip}>
           <View>
-            <Text style={styles.fireTitle}>Canyon Fire</Text>
-            <Text style={styles.subtleText}>
-              {acres} acres · {contained} contained
-            </Text>
+            <Text style={styles.primaryFeatureTitle}>{primaryFeature?.title ?? 'No mapped threats'}</Text>
+            <Text style={styles.subtleText}>{primaryFeature ? `${featureKindLabels[primaryFeature.kind]} · ${primaryFeature.status}` : 'Official source data'}</Text>
           </View>
           <View>
-            <Text style={styles.distanceText}>8.4 mi away</Text>
-            <Text style={styles.subtleText}>NE of your location</Text>
+            <Text style={styles.distanceText}>{features.length} feature{features.length === 1 ? '' : 's'}</Text>
+            <Text style={styles.subtleText}>{primaryFeature ? formatTimestamp(primaryFeature.updatedAt) : syncLabel(crisisData)}</Text>
           </View>
         </View>
       </View>
 
       <SectionLabel>What to do now</SectionLabel>
       <View style={styles.card}>
-        {[
-          'Gather identification and essential medications',
-          'Charge your phone and backup battery',
-          'Keep essential belongings ready to go',
-          'Continue monitoring evacuation updates',
-        ].map((text, index) => (
-          <ActionItem key={text} text={text} index={index} />
-        ))}
+        {actions.length ? actions.map((item, index) => (
+          <ActionItem
+            key={`${item.short_description}-${index}`}
+            text={item.short_description}
+            detail={item.long_description}
+            icon={item.emoji}
+            citation={item.citation}
+            index={index}
+          />
+        )) : (
+          <ActionItem
+            text={crisisData.todoListAgent.loading ? 'Generating recommended actions' : 'Refresh to generate recommended actions'}
+            index={0}
+          />
+        )}
       </View>
 
       <SectionLabel>Since your last refresh</SectionLabel>
@@ -190,53 +281,11 @@ function CrisisContent({
       </Pressable>
       {sourcesOpen && (
         <View style={[styles.card, styles.sourcesList]}>
-          <SourceTag name="Santa Clara County OES" time="8 min ago" />
-          <SourceTag name="CAL FIRE — Canyon Fire" time="8 min ago" />
-          <SourceTag name="NWS Bay Area" time="12 min ago" />
-          <SourceTag name="511 SF Bay — Road Closures" time="22 min ago" />
+          {sourceRows(crisisData).map(source => (
+            <SourceTag key={`${source.name}-${source.time}`} name={source.name} time={source.time} />
+          ))}
         </View>
       )}
-    </View>
-  );
-}
-
-function NoCrisisContent({ onRefresh, crisisData }: { onRefresh: () => void; crisisData: CrisisDataState }) {
-  const features = crisisData.snapshot?.features ?? [];
-  const unavailable = crisisData.snapshot
-    ? Object.values(crisisData.snapshot.sourceHealth).filter(source => source.status === 'error').length
-    : 2;
-  return (
-    <View>
-      <Header sync={syncLabel(crisisData)} location={locationLabel(crisisData)} onRefresh={onRefresh} />
-      <CrisisMap
-        compact
-        layers={defaultLayers}
-        location={crisisData.snapshot?.location ?? null}
-        features={crisisData.snapshot?.features ?? []}
-        loading={crisisData.loading}
-        stale={crisisData.snapshot?.stale}
-      />
-      <View style={[styles.card, styles.clearCard]}>
-        <View style={styles.clearIcon}>
-          <Text style={styles.clearCheck}>✓</Text>
-        </View>
-        <View style={styles.flex}>
-          <StatusBadge level="CLEAR" />
-          <Text style={styles.clearText}>{features.length ? `${features.length} official map feature${features.length === 1 ? '' : 's'} found` : unavailable ? 'Live sources are currently unavailable' : 'No mapped threats found for your location'}</Text>
-        </View>
-      </View>
-      <SectionLabel>Nearby activity</SectionLabel>
-      <View style={styles.card}>
-        {features.length ? features.slice(0, 5).map(feature => (
-          <View key={feature.id} style={styles.activityItem}>
-            <Text style={styles.activityMark}>•</Text>
-            <View style={styles.flex}>
-              <Text style={styles.activityTitle}>{feature.title}</Text>
-              <Text style={styles.subtleText}>{feature.sourceName} · {new Date(feature.updatedAt).toLocaleString()}</Text>
-            </View>
-          </View>
-        )) : <View style={styles.activityItem}><Text style={styles.subtleText}>{unavailable ? 'Refresh again later. Missing data is never treated as an all-clear.' : 'Official sources returned no mapped features for this point.'}</Text></View>}
-      </View>
     </View>
   );
 }

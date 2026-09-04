@@ -110,7 +110,7 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  fireStrip: {
+  primaryFeatureStrip: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     backgroundColor: '#FDF7EE',
@@ -119,7 +119,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 13,
   },
-  fireTitle: {
+  primaryFeatureTitle: {
     color: COLORS.orange,
     fontSize: 13,
     fontWeight: '800',
@@ -162,12 +162,26 @@ export const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
-  actionText: {
+  actionCopy: {
     flex: 1,
+    paddingTop: 3,
+  },
+  actionText: {
     color: COLORS.ink,
     fontSize: 13,
     lineHeight: 18,
-    paddingTop: 5,
+    fontWeight: '700',
+  },
+  actionDetail: {
+    color: COLORS.body,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  actionCitation: {
+    color: COLORS.muted,
+    fontSize: 11,
+    marginTop: 5,
   },
   changeItem: {
     flexDirection: 'row',
@@ -221,51 +235,6 @@ export const styles = StyleSheet.create({
     color: COLORS.body,
     fontSize: 12,
     fontWeight: '700',
-  },
-  clearCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 16,
-  },
-  clearIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E5F5EE',
-  },
-  clearCheck: {
-    color: COLORS.green,
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  clearText: {
-    color: COLORS.body,
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 6,
-  },
-  activityItem: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0EDE8',
-  },
-  activityMark: {
-    color: COLORS.orange,
-    fontSize: 22,
-    lineHeight: 22,
-  },
-  activityTitle: {
-    color: COLORS.body,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  flex: {
-    flex: 1,
   },
   refreshingScreen: {
     flex: 1,
@@ -1123,4 +1092,3 @@ export const layerTextStyles = StyleSheet.create<Record<LayerKey, { color: strin
   evacWarning: { color: COLORS.orange },
   evacOrder: { color: COLORS.red },
 });
-

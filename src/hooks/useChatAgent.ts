@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Config from 'react-native-config';
 import { fetchChatAgentResponse } from '../services/chatAgent';
 import type { ChatAgentRequest, ChatAgentResponse } from '../types';
+
+// TODO: Just for testing, can delete later
+const MOCK_CHAT_AGENT_RESPONSE: ChatAgentResponse = {
+  citations: ['Mocked ChatAgent data'],
+  answer:
+    'Test test',
+  follow_up_questions: [
+    'What changed since the last update?',
+    'What should I do first?',
+    'Where can I find official local guidance?',
+  ],
+};
 
 export function useChatAgent() {
   const [data, setData] = useState<ChatAgentResponse | null>(null);
@@ -24,7 +37,10 @@ export function useChatAgent() {
     }
 
     try {
-      const response = await fetchChatAgentResponse(params);
+      const response =
+        Config.USE_MOCK_AGENT_RESPONSE === 'true'
+          ? MOCK_CHAT_AGENT_RESPONSE
+          : await fetchChatAgentResponse(params);
       if (mounted.current) {
         setData(response);
         setSuccess(true);
