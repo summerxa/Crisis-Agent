@@ -71,3 +71,41 @@ export type CrisisDataState = {
   locationAccess: LocationAccessState;
   refresh: () => Promise<void>;
 };
+
+export type TodoListAgentActionItem = {
+  emoji: string;
+  short_description: string;
+  long_description: string;
+  citation: string[];
+};
+
+export type TodoListAgentResponse = {
+  state: StatusLevel;
+  subtitle: string;
+  description: string;
+  change_items: string[];
+  action_items: TodoListAgentActionItem[];
+  disaster_state_writeup: string;
+  disaster_response_writeup: string;
+};
+
+export type TodoListAgentRequest = {
+  sessionId: string;
+  crisisSnapshot: CrisisSnapshot;
+  previousSnapshot?: CrisisSnapshot | null;
+};
+
+export type ChatAgentResponse = {
+  citations: string[];
+  answer: string;
+  follow_up_questions: string[];
+};
+
+export type ChatAgentRequest = {
+  sessionId: string;
+  prompt: string;
+  disasterSnapshot: CrisisSnapshot;
+  previousSnapshot?: CrisisSnapshot | null;
+  disasterWriteup: string;
+  todoWriteup: string;
+};
