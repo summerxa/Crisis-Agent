@@ -2,8 +2,20 @@ import Geolocation from '@react-native-community/geolocation';
 import { PermissionsAndroid, Platform } from 'react-native';
 import type { Position } from '../types';
 
+export class LocationPermissionDeniedError extends Error {
+  constructor() {
+    super('Location permission was not granted.');
+    this.name = 'LocationPermissionDeniedError';
+  }
+}
+
 async function requestForegroundPermission(): Promise<boolean> {
   if (Platform.OS === 'android') {
+    const alreadyGranted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    );
+    if (alreadyGranted) return true;
+
     const result = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     );
@@ -42,7 +54,7 @@ function acquirePosition(enableHighAccuracy: boolean, timeout: number): Promise<
 
 export async function getCurrentPosition(): Promise<Position> {
   if (!(await requestForegroundPermission())) {
-    throw new Error('Location permission was not granted.');
+    throw new LocationPermissionDeniedError();
   }
 
   try {

@@ -22,6 +22,8 @@ export type Position = {
   timestamp: string;
 };
 
+export type LocationAccessState = 'checking' | 'granted' | 'denied' | 'error';
+
 export type GeoPoint = { type: 'Point'; coordinates: [number, number] };
 export type GeoPolygon = {
   type: 'Polygon';
@@ -66,5 +68,6 @@ export type CrisisDataState = {
   snapshot: CrisisSnapshot | null;
   loading: boolean;
   locationError: string | null;
+  locationAccess: LocationAccessState;
   refresh: () => Promise<void>;
 };

@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CrisisDataState, CrisisSnapshot } from '../types';
+import type { CrisisDataState, CrisisSnapshot, LocationAccessState } from '../types';
 import { fetchCrisisFeatures } from '../services/crisisSources';
-import { getCurrentPosition } from '../services/location';
+import { getCurrentPosition, LocationPermissionDeniedError } from '../services/location';
 
 export function useCrisisData(): CrisisDataState {
   const [snapshot, setSnapshot] = useState<CrisisSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationAccess, setLocationAccess] = useState<LocationAccessState>('checking');
   const mounted = useRef(true);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setLocationAccess('checking');
     try {
       const location = await getCurrentPosition();
       if (mounted.current) {
+        setLocationAccess('granted');
         setSnapshot(previous => previous
           ? { ...previous, location }
           : {
@@ -44,6 +47,7 @@ export function useCrisisData(): CrisisDataState {
       }
     } catch (error) {
       if (mounted.current) {
+        setLocationAccess(error instanceof LocationPermissionDeniedError ? 'denied' : 'error');
         setLocationError(error instanceof Error ? error.message : 'Refresh failed.');
         setSnapshot(previous => previous ? { ...previous, stale: true } : previous);
       }
@@ -58,5 +62,5 @@ export function useCrisisData(): CrisisDataState {
     return () => { mounted.current = false; };
   }, [refresh]);
 
-  return { snapshot, loading, locationError, refresh };
+  return { snapshot, loading, locationError, locationAccess, refresh };
 }

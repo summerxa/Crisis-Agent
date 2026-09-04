@@ -1,5 +1,5 @@
 import React, { Component, useState } from 'react';
-import { StatusBar, Text, useColorScheme, View } from 'react-native';
+import { Linking, Pressable, StatusBar, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import BottomNav from './src/components/BottomNav';
 import ChatScreen from './src/screens/ChatScreen';
@@ -41,6 +41,10 @@ function App() {
   const [homePhase, setHomePhase] = useState<HomePhase>('no-crisis');
   const crisisData = useCrisisData();
 
+  if (crisisData.locationAccess === 'denied') {
+    return <LocationPermissionWarning isDarkMode={isDarkMode} />;
+  }
+
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -67,6 +71,46 @@ function App() {
         </View>
 
         <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+export function LocationPermissionWarning({ isDarkMode }: { isDarkMode: boolean }) {
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  const openSettings = async () => {
+    setSettingsError(null);
+    try {
+      await Linking.openSettings();
+    } catch {
+      setSettingsError('Unable to open Settings. Please open your device settings manually.');
+    }
+  };
+
+  return (
+    <SafeAreaProvider>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <SafeAreaView style={styles.permissionScreen}>
+        <View accessibilityRole="alert" style={styles.permissionCard}>
+          <Text style={styles.permissionIcon}>⌖</Text>
+          <Text style={styles.permissionTitle}>Location permission required</Text>
+          <Text style={styles.permissionMessage}>
+            Crisis Agent needs your location to provide location-specific crisis information.{' '}
+            Please enable Location in Settings, then restart the app.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={openSettings}
+            style={styles.permissionButton}>
+            <Text style={styles.permissionButtonText}>Open Settings</Text>
+          </Pressable>
+          {settingsError && (
+            <Text accessibilityLiveRegion="assertive" style={styles.permissionError}>
+              {settingsError}
+            </Text>
+          )}
+        </View>
       </SafeAreaView>
     </SafeAreaProvider>
   );
