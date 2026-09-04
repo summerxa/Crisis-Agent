@@ -66,10 +66,12 @@ export type CrisisSnapshot = {
 
 export type CrisisDataState = {
   snapshot: CrisisSnapshot | null;
+  previousSnapshot: CrisisSnapshot | null;
   loading: boolean;
   locationError: string | null;
   locationAccess: LocationAccessState;
   refresh: () => Promise<void>;
+  todoListAgent: TodoListAgentState;
 };
 
 export type TodoListAgentActionItem = {
@@ -93,6 +95,14 @@ export type TodoListAgentRequest = {
   sessionId: string;
   crisisSnapshot: CrisisSnapshot;
   previousSnapshot?: CrisisSnapshot | null;
+};
+
+export type TodoListAgentState = {
+  data: TodoListAgentResponse | null;
+  loading: boolean;
+  error: string | null;
+  success: boolean;
+  getTodoListAgentResponse: (params: TodoListAgentRequest) => Promise<TodoListAgentResponse>;
 };
 
 export type ChatAgentResponse = {

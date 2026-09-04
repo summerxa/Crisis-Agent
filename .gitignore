@@ -25,6 +25,9 @@ DerivedData
 # AgentCore local files / generated state
 backend/**/.venv/
 
+# Local environment
+.env
+
 # Android/IntelliJ
 #
 build/

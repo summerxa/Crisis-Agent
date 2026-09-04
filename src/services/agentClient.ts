@@ -1,12 +1,6 @@
-import { Sha256 } from '@aws-crypto/sha256-js';
-import { HttpRequest } from '@smithy/protocol-http';
-import { SignatureV4 } from '@smithy/signature-v4';
-import { awsCredentials } from '../api/awsCredentials';
+import Config from 'react-native-config';
 
-export const AGENT_URL = 'https://lp1aspew00.execute-api.us-east-1.amazonaws.com';
-
-const AWS_REGION = 'us-east-1';
-const AWS_SERVICE = 'execute-api';
+export const AGENT_URL = Config.AGENT_URL;
 
 type AgentWrapperBody = {
   sessionId?: unknown;
@@ -34,41 +28,6 @@ function parseBody(body: unknown, agentName: string): AgentWrapperBody {
     throw new Error(`${agentName} response body is missing or invalid.`);
   }
   return parsedBody as AgentWrapperBody;
-}
-
-function headersToFetchHeaders(headers: Record<string, string | string[] | undefined>) {
-  return Object.entries(headers).reduce<Record<string, string>>((result, [key, value]) => {
-    if (value === undefined) {
-      return result;
-    }
-    result[key] = Array.isArray(value) ? value.join(',') : value;
-    return result;
-  }, {});
-}
-
-async function signAgentRequest(path: string, body: string) {
-  const endpoint = new URL(`${AGENT_URL}${path}`);
-  const signer = new SignatureV4({
-    credentials: awsCredentials,
-    region: AWS_REGION,
-    service: AWS_SERVICE,
-    sha256: Sha256,
-  });
-
-  const request = new HttpRequest({
-    protocol: endpoint.protocol,
-    hostname: endpoint.hostname,
-    method: 'POST',
-    path: `${endpoint.pathname}${endpoint.search}`,
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      host: endpoint.hostname,
-    },
-    body,
-  });
-
-  return signer.sign(request);
 }
 
 export function extractAgentResponse(
@@ -108,12 +67,18 @@ export async function postAgentPrompt<TResponse>({
   agentName: string;
   assertResponse: (value: unknown) => TResponse;
 }) {
+  if (!AGENT_URL) {
+    throw new Error('AGENT_URL is not configured.');
+  }
+
   const requestBody = JSON.stringify({ sessionId, prompt });
-  const signedRequest = await signAgentRequest(path, requestBody);
 
   const response = await fetch(`${AGENT_URL}${path}`, {
     method: 'POST',
-    headers: headersToFetchHeaders(signedRequest.headers),
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+    },
     body: requestBody,
   });
 
