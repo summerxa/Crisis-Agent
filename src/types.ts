@@ -12,7 +12,22 @@ export type ChatMessage = {
   id: number;
   role: 'user' | 'assistant';
   text: string;
-  source?: string;
+  citations?: string[];
+};
+
+export type SessionChatState = {
+  messages: ChatMessage[];
+  input: string;
+  setInput: (input: string) => void;
+  followUpPrompts: string[];
+  isSubmitting: boolean;
+  hydrated: boolean;
+  chatReady: boolean;
+  disabled: boolean;
+  statusText: string;
+  inputPlaceholder: string;
+  contextMessage: string;
+  sendMessage: (text: string) => Promise<void>;
 };
 
 export type Position = {

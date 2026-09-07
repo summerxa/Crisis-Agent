@@ -7,6 +7,7 @@ from strands.agent.conversation_manager.null_conversation_manager import NullCon
 from strands.hooks import (
     AfterToolCallEvent,
     AfterToolsEvent,
+    BeforeToolCallEvent,
     BeforeModelCallEvent,
     BeforeToolsEvent,
     HookOrder,
@@ -29,6 +30,7 @@ You are a disaster response planning agent invoked when the user refreshes their
 Analyze disaster_weather_data: use snapshot as the current local hazard context and previous_snapshot (if available) to identify changes since the last refresh.
 
 Verify factual guidance with consulted web sources. Use web search for current response guidance, official status, evacuation language, shelter/supply guidance, or recovery steps.
+Use the web-search tool no more than 2 times per invocation.
 Prefer FEMA, Ready.gov, NOAA/NWS, CDC, local emergency management, and state/county emergency pages. Do not treat missing or stale source data as all-clear.
 
 Classify state as exactly one of CLEAR, AWARE, PREPARE, ACT, RECOVER:
@@ -43,7 +45,7 @@ Output:
 - subtitle: a short official-status-based subtitle; if no official status exists, say so.
 - description: 1-2 sentences describing the user's current state.
 - change_items: disaster information that changed since previous_snapshot; if nothing changed, say so in one list item.
-- action_items: practical actions, each with one relevant emoji, a short initial-view description, a longer detailed description, and the names of the source(s) that you consulted for this action item.
+- action_items: up to 5 practical actions, each with one relevant emoji, a short initial-view description, a longer detailed description, and the names of the source(s) that you consulted for this action item.
 - disaster_state_writeup: concise context for other agents summarizing the disaster state.
 - disaster_response_writeup: concise context for other agents explaining how the user should prepare or respond.
 
@@ -88,6 +90,8 @@ log.info("Configured static tools/providers: %d", len(tools))
 _INLINE_FUNCTION_NAMES = set()
 REQUIRED_TOOL_NAMES = {"DisasterWebSearch___WebSearch"}
 STRUCTURED_OUTPUT_TOOL_NAME = TodoListOutput.__name__
+WEB_SEARCH_TOOL_NAME = "DisasterWebSearch___WebSearch"
+MAX_WEB_SEARCH_TOOL_USES = 2
 
 
 def _make_conversation_manager():
@@ -198,6 +202,40 @@ class StructuredOutputTerminator:
             log.info("Ending TodoListAgent turn immediately after TodoListOutput")
 
 
+class WebSearchUsageLimiter:
+    def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
+        registry.add_callback(BeforeToolCallEvent, self.limit_web_search_usage, order=HookOrder.SDK_FIRST)
+
+    def limit_web_search_usage(self, event: BeforeToolCallEvent) -> None:
+        if event.tool_use.get("name") != WEB_SEARCH_TOOL_NAME:
+            return
+
+        usage_count = event.invocation_state.get("todo_web_search_usage_count", 0)
+        if not isinstance(usage_count, int):
+            usage_count = 0
+
+        if usage_count >= MAX_WEB_SEARCH_TOOL_USES:
+            event.cancel_tool = (
+                f"{WEB_SEARCH_TOOL_NAME} usage limit reached: "
+                f"{MAX_WEB_SEARCH_TOOL_USES} calls allowed per TodoListAgent invocation."
+            )
+            log.warning(
+                "Cancelled %s call because usage_count=%d limit=%d",
+                WEB_SEARCH_TOOL_NAME,
+                usage_count,
+                MAX_WEB_SEARCH_TOOL_USES,
+            )
+            return
+
+        event.invocation_state["todo_web_search_usage_count"] = usage_count + 1
+        log.info(
+            "Allowing %s call %d/%d",
+            WEB_SEARCH_TOOL_NAME,
+            usage_count + 1,
+            MAX_WEB_SEARCH_TOOL_USES,
+        )
+
+
 # Reuses one Agent per session_id so MCP tools are loaded once per warm process.
 # Message history is cleared at the start of each top-level invocation; the
 # current request can still keep tool-use/tool-result continuity while it runs.
@@ -220,6 +258,7 @@ def agent_factory():
             conversation_manager=_make_conversation_manager(),
             hooks=[
                 RequiredToolAssertion(),
+                WebSearchUsageLimiter(),
                 StructuredOutputTerminator(),
             ],
         )

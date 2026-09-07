@@ -1,58 +1,18 @@
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { COLORS, DEFAULT_RESPONSE, SCRIPTED_RESPONSES, SUGGESTED_PROMPTS } from '../constants';
+import { COLORS } from '../constants';
 import { styles } from '../styles';
-import type { ChatMessage } from '../types';
+import type { SessionChatState } from '../types';
 
-export default function ChatScreen() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 0,
-      role: 'assistant' as const,
-      text: "I'm your crisis assistant for the Canyon Fire situation near San Jose. I can answer questions about your evacuation status, what to do, or what changed since your last update.",
-      source: 'Grounded in: CAL FIRE, Santa Clara County OES, NWS Bay Area',
-    },
-  ]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const idRef = useRef(1);
-
-  const sendMessage = (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || isTyping) {
-      return;
-    }
-
-    setMessages(prev => [
-      ...prev,
-      { id: idRef.current++, role: 'user' as const, text: trimmed },
-    ]);
-    setInput('');
-    setIsTyping(true);
-
-    setTimeout(() => {
-      const response = SCRIPTED_RESPONSES[trimmed] ?? DEFAULT_RESPONSE;
-      setMessages(prev => [
-        ...prev,
-        {
-          id: idRef.current++,
-          role: 'assistant' as const,
-          text: response.text,
-          source: response.source,
-        },
-      ]);
-      setIsTyping(false);
-    }, 1100);
-  };
-
+export default function ChatScreen({ chat }: { chat: SessionChatState }) {
   return (
     <View style={styles.chatScreen}>
       <View style={styles.chatHeader}>
         <Text style={styles.chatTitle}>Ask about this crisis</Text>
-        <Text style={styles.onlineText}>● Canyon Fire · San Jose, CA</Text>
+        <Text style={styles.onlineText}>● {chat.statusText}</Text>
       </View>
       <ScrollView style={styles.messages} contentContainerStyle={styles.messagesContent}>
-        {messages.map(message => (
+        {chat.messages.map(message => (
           <View
             key={message.id}
             style={[
@@ -78,13 +38,13 @@ export default function ChatScreen() {
                 ]}>
                 {message.text}
               </Text>
-              {message.role === 'assistant' && message.source && (
-                <Text style={styles.messageSource}>ⓘ {message.source}</Text>
+              {message.role === 'assistant' && !!message.citations?.length && (
+                <Text style={styles.messageSource}>ⓘ {message.citations.join(', ')}</Text>
               )}
             </View>
           </View>
         ))}
-        {isTyping && (
+        {chat.isSubmitting && (
           <View style={styles.typingRow}>
             <View style={styles.assistantAvatar}>
               <Text style={styles.avatarText}>i</Text>
@@ -94,17 +54,31 @@ export default function ChatScreen() {
             </View>
           </View>
         )}
+        {chat.hydrated && !chat.chatReady && (
+          <View style={styles.typingRow}>
+            <View style={styles.assistantAvatar}>
+              <Text style={styles.avatarText}>i</Text>
+            </View>
+            <View style={[styles.messageBubble, styles.assistantBubble]}>
+              <Text style={styles.messageText}>{chat.contextMessage}</Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
-      {messages.length <= 1 && (
+      {!!chat.followUpPrompts.length && (
         <View style={styles.suggestions}>
           <Text style={styles.suggestionTitle}>Suggested questions</Text>
           <View style={styles.promptWrap}>
-            {SUGGESTED_PROMPTS.map(prompt => (
+            {chat.followUpPrompts.map(prompt => (
               <Pressable
                 key={prompt}
-                onPress={() => sendMessage(prompt)}
-                style={styles.promptChip}>
+                disabled={chat.disabled}
+                onPress={() => chat.sendMessage(prompt)}
+                style={[
+                  styles.promptChip,
+                  chat.disabled && styles.promptChipDisabled,
+                ]}>
                 <Text style={styles.promptText}>{prompt}</Text>
               </Pressable>
             ))}
@@ -114,19 +88,20 @@ export default function ChatScreen() {
 
       <View style={styles.inputBar}>
         <TextInput
-          value={input}
-          onChangeText={setInput}
-          onSubmitEditing={() => sendMessage(input)}
-          placeholder="Ask about the Canyon Fire..."
+          value={chat.input}
+          onChangeText={chat.setInput}
+          onSubmitEditing={() => chat.sendMessage(chat.input)}
+          editable={!chat.disabled}
+          placeholder={chat.inputPlaceholder}
           placeholderTextColor="#C0BDB7"
           style={styles.input}
         />
         <Pressable
-          disabled={!input.trim() || isTyping}
-          onPress={() => sendMessage(input)}
+          disabled={!chat.input.trim() || chat.disabled}
+          onPress={() => chat.sendMessage(chat.input)}
           style={[
             styles.sendButton,
-            !!input.trim() && !isTyping && styles.sendButtonReady,
+            !!chat.input.trim() && !chat.disabled && styles.sendButtonReady,
           ]}>
           <Text style={styles.sendText}>➤</Text>
         </Pressable>

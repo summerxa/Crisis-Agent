@@ -10,6 +10,7 @@ import MapScreen from './src/screens/MapScreen';
 import { styles } from './src/styles';
 import type { AppTab, HomePhase } from './src/types';
 import { useCrisisData } from './src/hooks/useCrisisData';
+import { useSessionChat } from './src/hooks/useSessionChat';
 import { getOrCreateSessionId } from './src/services/sessionStorage';
 import { COLORS } from './src/constants';
 
@@ -37,10 +38,11 @@ class ErrorBoundary extends Component<
   }
 }
 
-function AppBody({ sessionId, isDarkMode }: { sessionId: string, isDarkMode: boolean }) {
+function AppBody({ sessionId }: { sessionId: string }) {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [homePhase, setHomePhase] = useState<HomePhase>('no-crisis');
   const crisisData = useCrisisData({ sessionId });
+  const sessionChat = useSessionChat({ sessionId, crisisData });
 
   return (
     <>
@@ -61,7 +63,9 @@ function AppBody({ sessionId, isDarkMode }: { sessionId: string, isDarkMode: boo
               crisisData={crisisData}
             />
           )}
-          {activeTab === 'chat' && <ChatScreen />}
+          {activeTab === 'chat' && (
+            <ChatScreen chat={sessionChat} />
+          )}
         </ErrorBoundary>
       </View>
 
@@ -105,7 +109,7 @@ function App() {
             <Text style={styles.errorText}>{sessionError}</Text>
           </View>
         ) : sessionId ? (
-          <AppBody sessionId={sessionId} isDarkMode={isDarkMode} />
+          <AppBody sessionId={sessionId} />
         ) : (
           <View style={styles.refreshingScreen}>
             <ActivityIndicator color={COLORS.navy} size="large" />

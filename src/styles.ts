@@ -981,6 +981,9 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
+  promptChipDisabled: {
+    opacity: 0.55,
+  },
   promptText: {
     color: COLORS.ink,
     fontSize: 12,
