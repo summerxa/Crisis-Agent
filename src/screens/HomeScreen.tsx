@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { COLORS, REFRESH_STEPS } from '../constants';
 import { styles } from '../styles';
-import type { AppTab, CrisisDataState, CrisisFeature, HomePhase, LayerKey, StatusLevel } from '../types';
+import type { AppTab, CrisisDataState, CrisisFeature, LayerKey, StatusLevel } from '../types';
 import CrisisMap from '../components/CrisisMap';
 import ChatPrompt from '../components/ChatPrompt';
 import { ActionItem, ChangeItem, Divider, InfoBlock, SectionLabel, SourceTag, StatusBadge } from '../components/common';
@@ -23,9 +23,9 @@ function locationLabel(data: CrisisDataState) {
 }
 
 function syncLabel(data: CrisisDataState) {
-  if (data.loading) return 'Refreshing official sources';
+  if (data.loading) return 'Refreshing your situation';
   if (!data.snapshot) return 'No live data available';
-  return `${data.snapshot.stale ? 'Last available data' : 'Updated'} ${new Date(data.snapshot.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  return `${data.refreshError || data.snapshot.stale ? 'Last successful update' : 'Updated'} ${new Date(data.snapshot.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 }
 
 const featureKindLabels: Record<CrisisFeature['kind'], string> = {
@@ -128,18 +128,14 @@ function sourceRows(data: CrisisDataState) {
 }
 
 export default function HomeScreen({
-  phase,
-  setPhase,
   onNavigate,
   crisisData,
 }: {
-  phase: HomePhase;
-  setPhase: (phase: HomePhase) => void;
   onNavigate: (tab: AppTab) => void;
   crisisData: CrisisDataState;
 }) {
-  if (phase === 'refreshing') {
-    return <RefreshingContent refresh={crisisData.refresh} onComplete={() => setPhase('no-crisis')} />;
+  if (crisisData.showRefresh) {
+    return <RefreshingContent data={crisisData} />;
   }
 
   return (
@@ -147,7 +143,7 @@ export default function HomeScreen({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <CrisisContent
           onNavigate={onNavigate}
-          onRefresh={() => setPhase('refreshing')}
+          onRefresh={() => { crisisData.refresh(); }}
           crisisData={crisisData}
         />
       </ScrollView>
@@ -206,6 +202,21 @@ function CrisisContent({
   const planBody = agentData?.subtitle
     ?? (crisisData.todoListAgent.loading ? 'Generating action plan' : 'No generated action plan available');
 
+  if (!snapshot) {
+    return (
+      <View>
+        <Header sync="No live data available" onRefresh={onRefresh} location="Location unavailable" />
+        <View style={[styles.card, styles.cardPadded]} accessibilityRole="alert">
+          <Text style={styles.errorTitle}>Situation unavailable</Text>
+          <Text style={styles.bodyText}>{crisisData.refreshError ?? 'Refresh to check your area.'}</Text>
+          <Pressable accessibilityRole="button" onPress={onRefresh} style={styles.refreshButton}>
+            <Text style={styles.refreshText}>Retry</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View>
       <Header
@@ -213,6 +224,16 @@ function CrisisContent({
         onRefresh={onRefresh}
         location={locationLabel(crisisData)}
       />
+
+      {crisisData.refreshError && (
+        <View style={[styles.card, styles.cardPadded]} accessibilityRole="alert">
+          <Text style={styles.errorTitle}>Refresh failed · Showing previous information</Text>
+          <Text style={styles.bodyText}>{crisisData.refreshError}</Text>
+          <Pressable accessibilityRole="button" onPress={onRefresh} style={styles.refreshButton}>
+            <Text style={styles.refreshText}>Retry</Text>
+          </Pressable>
+        </View>
+      )}
 
       <CrisisMap compact layers={defaultLayers} location={crisisData.snapshot?.location ?? null} features={crisisData.snapshot?.features ?? []} loading={crisisData.loading} stale={crisisData.snapshot?.stale} onExpandMap={() => onNavigate('map')} />
 
@@ -290,36 +311,17 @@ function CrisisContent({
   );
 }
 
-function RefreshingContent({ onComplete, refresh }: { onComplete: () => void; refresh: () => Promise<void> }) {
-  const [visibleSteps, setVisibleSteps] = useState(0);
-  const [currentStep, setCurrentStep] = useState(0);
-
-  useEffect(() => {
-    const timings = [400, 900, 1500, 2100, 2700];
-    const timers = timings.map((delay, index) =>
-      setTimeout(() => {
-        setVisibleSteps(index + 1);
-        setCurrentStep(index);
-      }, delay),
-    );
-    let cancelled = false;
-    const started = Date.now();
-    refresh().finally(() => {
-      const remaining = Math.max(0, 1000 - (Date.now() - started));
-      setTimeout(() => { if (!cancelled) onComplete(); }, remaining);
-    });
-
-    return () => {
-      timers.forEach(clearTimeout);
-      cancelled = true;
-    };
-  }, [onComplete, refresh]);
+function RefreshingContent({ data }: { data: CrisisDataState }) {
+  const currentStep = data.refreshStep;
+  const location = data.snapshot?.location;
 
   return (
     <View style={styles.refreshingScreen}>
       <View style={styles.refreshLocation}>
         <Text style={styles.locationIcon}>⌖</Text>
-        <Text style={styles.locationText}>San Jose, CA</Text>
+        <Text style={styles.locationText}>{location
+          ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+          : 'Checking your location'}</Text>
       </View>
       <View style={styles.bigSpinner}>
         <ActivityIndicator color={COLORS.navy} size="large" />
@@ -330,7 +332,7 @@ function RefreshingContent({ onComplete, refresh }: { onComplete: () => void; re
       </Text>
 
       <View style={styles.steps}>
-        {REFRESH_STEPS.slice(0, visibleSteps).map((step, index) => {
+        {REFRESH_STEPS.slice(0, currentStep + 1).map((step, index) => {
           const done = index < currentStep;
           const active = index === currentStep;
 

@@ -1,3 +1,4 @@
+import Config from 'react-native-config';
 import type {
   CrisisFeature,
   CrisisSnapshot,
@@ -6,6 +7,37 @@ import type {
   TodoListAgentResponse,
 } from '../types';
 import { AGENT_URL, postAgentPrompt } from './agentClient';
+
+const MOCK_TODO_LIST_AGENT_RESPONSE: TodoListAgentResponse = {
+  state: 'ACT',
+  subtitle: 'Suggested action plan: krill urself',
+  description:
+    'Look out! There is a magnitude 67 earthquake nearby.',
+  change_items: [
+    'More testing test',
+    'Mock response plan is ready for review.',
+  ],
+  action_items: [
+    {
+      emoji: '🔥',
+      short_description: 'This is a test',
+      long_description:
+        'Testing todo list agent output and UI stuff yayyy',
+      citation: ['Mocked TodoListAgent data'],
+    },
+    {
+      emoji: '😋',
+      short_description: 'Six seven',
+      long_description:
+        'Six seven six seven six seven six seven six seven six seven six seven six seven',
+      citation: ['Mocked TodoListAgent data'],
+    },
+  ],
+  disaster_state_writeup:
+    'Mock disaster state writeup used for testing screens and downstream chat context.',
+  disaster_response_writeup:
+    'Mock response writeup used for testing action lists without making network requests.',
+};
 
 export const TODO_LIST_AGENT_PATH = '/agents/todolist/invocations';
 
@@ -75,11 +107,17 @@ function assertTodoListAgentResponse(value: unknown): TodoListAgentResponse {
 
   const response = value as Partial<TodoListAgentResponse>;
   if (
-    typeof response.state !== 'string' ||
+    !['CLEAR', 'AWARE', 'PREPARE', 'ACT', 'RECOVER'].includes(response.state ?? '') ||
     typeof response.subtitle !== 'string' ||
     typeof response.description !== 'string' ||
     !Array.isArray(response.change_items) ||
+    !response.change_items.every(item => typeof item === 'string') ||
     !Array.isArray(response.action_items) ||
+    !response.action_items.every(item => item &&
+      typeof item.emoji === 'string' &&
+      typeof item.short_description === 'string' &&
+      typeof item.long_description === 'string' &&
+      Array.isArray(item.citation) && item.citation.every(citation => typeof citation === 'string')) ||
     typeof response.disaster_state_writeup !== 'string' ||
     typeof response.disaster_response_writeup !== 'string'
   ) {
@@ -93,7 +131,8 @@ export async function fetchTodoListAgentResponse({
   sessionId,
   crisisSnapshot,
   previousSnapshot,
-}: TodoListAgentRequest): Promise<TodoListAgentResponse> {
+}: TodoListAgentRequest, signal?: AbortSignal): Promise<TodoListAgentResponse> {
+  if (Config.USE_MOCK_AGENT_RESPONSE === 'true') return MOCK_TODO_LIST_AGENT_RESPONSE;
   const prompt = buildTodoListAgentPrompt(crisisSnapshot, previousSnapshot);
 
   return postAgentPrompt({
@@ -102,6 +141,7 @@ export async function fetchTodoListAgentResponse({
     prompt,
     agentName: 'TodoListAgent',
     assertResponse: assertTodoListAgentResponse,
+    signal,
   });
 }
 

@@ -47,19 +47,32 @@ function acquirePosition(enableHighAccuracy: boolean, timeout: number): Promise<
           : error.message || 'Unable to get your location.';
         reject(new Error(message));
       },
-      { enableHighAccuracy, timeout, maximumAge: 60000 },
+      { enableHighAccuracy, timeout, maximumAge: 0 },
     );
   });
 }
 
-export async function getCurrentPosition(): Promise<Position> {
+export async function getCurrentPosition(signal?: AbortSignal): Promise<Position> {
   if (!(await requestForegroundPermission())) {
     throw new LocationPermissionDeniedError();
   }
 
+  const checkCancelled = () => {
+    if (signal?.aborted) throw new Error('Location request cancelled.');
+  };
+  checkCancelled();
+
+  let position: Position;
   try {
-    return await acquirePosition(true, 10000);
+    position = await acquirePosition(true, 10000);
   } catch {
-    return acquirePosition(false, 10000);
+    checkCancelled();
+    position = await acquirePosition(false, 10000);
   }
+  checkCancelled();
+  if (!Number.isFinite(position.latitude) || Math.abs(position.latitude) > 90 ||
+      !Number.isFinite(position.longitude) || Math.abs(position.longitude) > 180) {
+    throw new Error('Device returned an invalid location.');
+  }
+  return position;
 }

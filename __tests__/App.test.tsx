@@ -5,12 +5,20 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import { Linking, PermissionsAndroid, Text } from 'react-native';
+import { deferred, plan } from '../testSupport/crisis';
+import type { TodoListAgentResponse } from '../src/types';
 
 let mockAuthorizationGranted = true;
 let mockPositionAvailable = false;
 
 jest.mock('react-native-get-random-values', () => ({}), { virtual: true });
 jest.mock('react-native-url-polyfill/auto', () => ({}), { virtual: true });
+jest.mock('react-native-config', () => ({ USE_MOCK_AGENT_RESPONSE: 'false' }));
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn().mockResolvedValue(null), setItem: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../src/services/sessionStorage', () => ({ getOrCreateSessionId: jest.fn().mockResolvedValue('test-session') }));
+jest.mock('../src/services/todoListAgent', () => ({ fetchTodoListAgentResponse: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => {
   const ReactNative = require('react-native');
   return {
@@ -49,14 +57,20 @@ jest.mock('../src/services/crisisSources', () => ({
 
 import App, { LocationPermissionWarning } from '../App';
 import { fetchCrisisFeatures } from '../src/services/crisisSources';
+import { fetchTodoListAgentResponse } from '../src/services/todoListAgent';
+import HomeScreen from '../src/screens/HomeScreen';
+import BottomNav from '../src/components/BottomNav';
+import CrisisMap from '../src/components/CrisisMap';
 
 const mockFetchCrisisFeatures = fetchCrisisFeatures as jest.MockedFunction<typeof fetchCrisisFeatures>;
 
 beforeEach(() => {
+  jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'setImmediate', 'nextTick'] });
   mockAuthorizationGranted = true;
   mockPositionAvailable = false;
   jest.restoreAllMocks();
   mockFetchCrisisFeatures.mockClear();
+  jest.mocked(fetchTodoListAgentResponse).mockReset().mockResolvedValue(plan);
   jest.spyOn(PermissionsAndroid, 'check').mockResolvedValue(false);
   jest.spyOn(PermissionsAndroid, 'request').mockImplementation(async () =>
     mockAuthorizationGranted
@@ -64,6 +78,8 @@ beforeEach(() => {
       : PermissionsAndroid.RESULTS.DENIED,
   );
 });
+
+afterEach(() => { jest.useRealTimers(); });
 
 test('blocks the app when location permission is denied', async () => {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -84,8 +100,9 @@ test('picks up a later grant on a fresh app mount', async () => {
     denied = ReactTestRenderer.create(<App />);
   });
   expect(denied.root.findAllByType(Text).some(node =>
-    node.props.children === 'Location permission required',
+    node.props.children === 'Situation unavailable',
   )).toBe(true);
+  expect(denied.root.findAllByType(Text).some(node => node.props.children === 'CLEAR')).toBe(false);
   expect(mockFetchCrisisFeatures).not.toHaveBeenCalled();
   await ReactTestRenderer.act(async () => denied.unmount());
 
@@ -102,6 +119,55 @@ test('picks up a later grant on a fresh app mount', async () => {
   )).toBe(false);
   expect(mockFetchCrisisFeatures).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => granted.unmount());
+});
+
+test('tab switches and rerenders preserve progress; final step waits for the plan', async () => {
+  mockPositionAvailable = true;
+  const pending = deferred<TodoListAgentResponse>();
+  jest.mocked(fetchTodoListAgentResponse).mockReturnValueOnce(pending.promise);
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
+  const texts = () => renderer.root.findAllByType(Text).map(node => node.props.children);
+  expect(texts()).toContain('Getting your location');
+  expect(texts()).toContain('Checking your location');
+  expect(texts()).not.toContain('San Jose, CA');
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(1400); });
+  expect(texts()).toContain('Comparing with your previous update');
+  await ReactTestRenderer.act(async () => renderer.root.findByType(BottomNav).props.onTabChange('chat'));
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(700); });
+  await ReactTestRenderer.act(async () => renderer.root.findByType(BottomNav).props.onTabChange('home'));
+  expect(texts()).toContain('Generating action plan');
+  await ReactTestRenderer.act(async () => renderer.update(<App />));
+  expect(mockFetchCrisisFeatures).toHaveBeenCalledTimes(1);
+  expect(fetchTodoListAgentResponse).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => pending.resolve(plan));
+  expect(texts()).not.toContain('Checking your area');
+  expect(renderer.root.findByType(HomeScreen).props.crisisData.snapshot).not.toBeNull();
+  expect(texts()).toContain('37.3000, -121.9000');
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('a refresh failure renders retained information and a working Retry button', async () => {
+  mockPositionAvailable = true;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(2100); });
+  const saved = renderer.root.findByType(HomeScreen).props.crisisData.snapshot;
+  expect(renderer.root.findByType(CrisisMap).props.location).toBe(saved.location);
+  expect(renderer.root.findAllByProps({ showsUserLocation: false }).length).toBeGreaterThan(0);
+  expect(renderer.root.findAllByProps({ title: 'Your location' })[0].props.coordinate).toBe(saved.location);
+  jest.mocked(fetchTodoListAgentResponse).mockRejectedValueOnce(new Error('Agent unavailable'));
+  const pressWithText = (text: string) => renderer.root.findAll(node =>
+    typeof node.props.onPress === 'function' && node.findAllByType(Text).some(child => child.props.children === text),
+  )[0].props.onPress();
+  await ReactTestRenderer.act(async () => { pressWithText('↻ Refresh'); });
+  expect(renderer.root.findByType(HomeScreen).props.crisisData.snapshot).toBe(saved);
+  expect(renderer.root.findAllByType(Text).some(node => node.props.children === 'Refresh failed · Showing previous information')).toBe(true);
+  await ReactTestRenderer.act(async () => { pressWithText('Retry'); });
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(2100); });
+  expect(renderer.root.findByType(HomeScreen).props.crisisData.refreshError).toBeNull();
+  expect(fetchTodoListAgentResponse).toHaveBeenCalledTimes(3);
+  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('opens device settings from the permission warning', async () => {

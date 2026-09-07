@@ -1,98 +1,136 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CrisisDataState, CrisisSnapshot, LocationAccessState } from '../types';
+import type { CrisisDataState, CrisisSnapshot, RefreshResult } from '../types';
 import { fetchCrisisFeatures } from '../services/crisisSources';
 import { getCurrentPosition, LocationPermissionDeniedError } from '../services/location';
-import { useTodoListAgent } from './useTodoListAgent';
+import { fetchTodoListAgentResponse } from '../services/todoListAgent';
 
-type UseCrisisDataConfig = {
-  sessionId?: string;
+export const REFRESH_TIMEOUT_MS = 120000;
+const STEP_INTERVAL_MS = 700;
+const PRESENTATION_MS = STEP_INTERVAL_MS * 3;
+
+type RefreshState = Omit<CrisisDataState, 'refresh'>;
+const initialState: RefreshState = {
+  snapshot: null, previousSnapshot: null, loading: true,
+  locationError: null, locationAccess: 'checking',
+  refreshError: null, refreshOutcome: 'idle', showRefresh: true, refreshStep: 0,
+  todoListAgent: { data: null, loading: false, error: null, success: false },
 };
+type ActiveRefresh = { controller: AbortController; promise: Promise<RefreshResult> };
 
-export function useCrisisData({ sessionId }: UseCrisisDataConfig = {}): CrisisDataState {
-  const [snapshot, setSnapshot] = useState<CrisisSnapshot | null>(null);
-  const [previousSnapshot, setPreviousSnapshot] = useState<CrisisSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [locationAccess, setLocationAccess] = useState<LocationAccessState>('checking');
-  const mounted = useRef(true);
+export function useCrisisData({ sessionId }: { sessionId?: string } = {}): CrisisDataState {
+  const [state, setState] = useState(initialState);
   const committedSnapshot = useRef<CrisisSnapshot | null>(null);
-  const refreshRequestId = useRef(0);
-  const todoListAgent = useTodoListAgent();
-  const { getTodoListAgentResponse } = todoListAgent;
+  const mounted = useRef(false);
+  const active = useRef<ActiveRefresh | null>(null);
+  const presentationTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const refresh = useCallback(async () => {
-    const currentRequestId = refreshRequestId.current + 1;
-    refreshRequestId.current = currentRequestId;
-    const previousCommittedSnapshot = committedSnapshot.current;
+  const clearPresentation = useCallback(() => {
+    presentationTimers.current.forEach(clearTimeout);
+    presentationTimers.current = [];
+  }, []);
 
-    setLoading(true);
-    setLocationAccess('checking');
-    setPreviousSnapshot(previousCommittedSnapshot);
+  const refresh = useCallback((): Promise<RefreshResult> => {
+    if (active.current) return active.current.promise;
+    if (!mounted.current) return Promise.resolve({ success: false, error: 'Refresh cancelled.' });
 
-    try {
-      const location = await getCurrentPosition();
-      if (mounted.current && refreshRequestId.current === currentRequestId) {
-        setLocationAccess('granted');
-        setSnapshot(previous => previous
-          ? { ...previous, location }
-          : {
-              location,
-              fetchedAt: new Date().toISOString(),
-              features: [],
-              sourceHealth: {
-                nws: { status: 'error', checkedAt: new Date().toISOString(), message: 'Refreshing' },
-                wfigs: { status: 'error', checkedAt: new Date().toISOString(), message: 'Refreshing' },
-              },
-              stale: true,
-            });
-      }
-      const result = await fetchCrisisFeatures(location);
-      const sourceFailed = Object.values(result.sourceHealth).some(s => s.status === 'error');
-      const retained = previousCommittedSnapshot?.features.filter(feature =>
-        (feature.id.startsWith('nws:') && result.sourceHealth.nws.status === 'error') ||
-        (feature.id.startsWith('wfigs:') && result.sourceHealth.wfigs.status === 'error'),
-      ) ?? [];
-      const features = [...result.features, ...retained].filter(
-        (feature, index, all) => all.findIndex(candidate => candidate.id === feature.id) === index,
-      );
-      const nextSnapshot = {
-        location,
-        fetchedAt: new Date().toISOString(),
-        ...result,
-        features,
-        stale: sourceFailed,
-      };
+    clearPresentation();
+    const controller = new AbortController();
+    const { signal } = controller;
+    const startedAt = Date.now();
+    const previousSnapshot = committedSnapshot.current;
+    let locationAcquired = false;
+    const isCurrent = () => mounted.current && active.current?.controller === controller && !signal.aborted;
+    const assertCurrent = () => {
+      if (!isCurrent()) throw new Error('Refresh cancelled.');
+    };
 
-      if (mounted.current && refreshRequestId.current === currentRequestId) {
-        committedSnapshot.current = nextSnapshot;
-        setSnapshot(nextSnapshot);
-        setLocationError(null);
-        setLoading(false);
-
-        if (sessionId) {
-          getTodoListAgentResponse({
-            sessionId,
-            crisisSnapshot: nextSnapshot,
-            previousSnapshot: previousCommittedSnapshot,
-          }).catch(() => undefined);
-        }
-      }
-    } catch (error) {
-      if (mounted.current && refreshRequestId.current === currentRequestId) {
-        setLocationAccess(error instanceof LocationPermissionDeniedError ? 'denied' : 'error');
-        setLocationError(error instanceof Error ? error.message : 'Refresh failed.');
-        setSnapshot(previous => previous ? { ...previous, stale: true } : previous);
-      }
-    } finally {
-      if (mounted.current && refreshRequestId.current === currentRequestId) setLoading(false);
+    setState(previous => ({
+      ...previous, loading: true, locationAccess: 'checking', locationError: null,
+      refreshError: null, refreshOutcome: 'refreshing', showRefresh: true, refreshStep: 0,
+      todoListAgent: { ...previous.todoListAgent, loading: false, error: null },
+    }));
+    for (let step = 1; step <= 3; step++) {
+      presentationTimers.current.push(setTimeout(() => {
+        if (mounted.current) setState(previous => ({ ...previous, refreshStep: step }));
+      }, STEP_INTERVAL_MS * step));
     }
-  }, [getTodoListAgentResponse, sessionId]);
+
+    const deadline = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+    let removeAbortListener = () => {};
+    const aborted = new Promise<never>((_resolve, reject) => {
+      const onAbort = () => reject(new Error('Refresh timed out. Please try again.'));
+      signal.addEventListener('abort', onAbort);
+      removeAbortListener = () => signal.removeEventListener('abort', onAbort);
+    });
+
+    // Install the active request before starting any asynchronous work.
+    const work = Promise.resolve().then(async () => {
+      assertCurrent();
+      const location = await getCurrentPosition(signal);
+      assertCurrent();
+      locationAcquired = true;
+      const result = await fetchCrisisFeatures(location, signal);
+      assertCurrent();
+      const failures = Object.entries(result.sourceHealth).filter(([, health]) => health.status !== 'ok');
+      if (failures.length) {
+        throw new Error(`Could not refresh ${failures.map(([name]) => name.toUpperCase()).join(' and ')}. Please try again.`);
+      }
+      if (!sessionId) throw new Error('Session is unavailable. Please restart the app.');
+      const snapshot: CrisisSnapshot = {
+        ...result, location, fetchedAt: new Date().toISOString(), stale: false,
+      };
+      setState(previous => ({ ...previous, todoListAgent: { ...previous.todoListAgent, loading: true } }));
+      const plan = await fetchTodoListAgentResponse({ sessionId, crisisSnapshot: snapshot, previousSnapshot }, signal);
+      assertCurrent();
+      return { snapshot, plan };
+    });
+
+    const promise = Promise.race([work, aborted]).then(({ snapshot, plan }): RefreshResult => {
+      assertCurrent();
+      committedSnapshot.current = snapshot;
+      const remaining = Math.max(0, PRESENTATION_MS - (Date.now() - startedAt));
+      setState(previous => ({
+        ...previous, snapshot, previousSnapshot, loading: false, locationAccess: 'granted',
+        refreshOutcome: 'success', showRefresh: remaining > 0,
+        todoListAgent: { data: plan, loading: false, error: null, success: true },
+      }));
+      if (remaining > 0) {
+        presentationTimers.current.push(setTimeout(() => {
+          if (mounted.current) setState(previous => ({ ...previous, showRefresh: false }));
+        }, remaining));
+      }
+      return { success: true };
+    }).catch((error: unknown): RefreshResult => {
+      const message = error instanceof Error && error.message ? error.message : 'Refresh failed. Please try again.';
+      if (mounted.current && active.current?.controller === controller) {
+        clearPresentation();
+        setState(previous => ({
+          ...previous, loading: false, showRefresh: false, refreshError: message, refreshOutcome: 'failure',
+          locationAccess: locationAcquired ? 'granted' : error instanceof LocationPermissionDeniedError ? 'denied' : 'error',
+          locationError: locationAcquired ? null : message,
+          todoListAgent: { ...previous.todoListAgent, loading: false },
+        }));
+      }
+      return { success: false, error: message };
+    }).finally(() => {
+      clearTimeout(deadline);
+      removeAbortListener();
+      if (active.current?.controller === controller) active.current = null;
+    });
+    active.current = { controller, promise };
+    return promise;
+  }, [clearPresentation, sessionId]);
 
   useEffect(() => {
     mounted.current = true;
     refresh();
-    return () => { mounted.current = false; };
-  }, [refresh]);
+    return () => {
+      mounted.current = false;
+      active.current?.controller.abort();
+      active.current = null;
+      clearPresentation();
+    };
+  }, [clearPresentation, refresh]);
 
-  return { snapshot, previousSnapshot, loading, locationError, locationAccess, refresh, todoListAgent };
+  return { ...state, refresh };
 }

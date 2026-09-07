@@ -39,6 +39,7 @@ describe('getCurrentPosition', () => {
 
     await expect(getCurrentPosition()).resolves.toMatchObject({ latitude: 37.3, longitude: -121.9 });
     expect(request).not.toHaveBeenCalled();
+    expect(geolocation.getCurrentPosition).toHaveBeenLastCalledWith(expect.any(Function), expect.any(Function), expect.objectContaining({ maximumAge: 0 }));
   });
 
   test('accepts an Android grant returned by the prompt', async () => {
@@ -69,5 +70,34 @@ describe('getCurrentPosition', () => {
       message: expect.stringContaining('timed out'),
       name: 'Error',
     });
+  });
+
+  test('ignores a cancelled GPS result without starting the fallback request', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    geolocation.requestAuthorization.mockImplementation((success: any) => success());
+    let rejectPosition!: (error: any) => void;
+    let started!: () => void;
+    const nativeRequestStarted = new Promise<void>(resolve => { started = resolve; });
+    geolocation.getCurrentPosition.mockClear().mockImplementation((_success: any, error: any) => {
+      rejectPosition = error;
+      started();
+    });
+    const controller = new AbortController();
+    const pending = getCurrentPosition(controller.signal);
+    const rejected = expect(pending).rejects.toThrow('cancelled');
+    await nativeRequestStarted;
+    controller.abort();
+    rejectPosition({ code: 3 });
+    await rejected;
+    expect(geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
+  });
+
+  test('rejects invalid device coordinates', async () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    geolocation.requestAuthorization.mockImplementation((success: any) => success());
+    geolocation.getCurrentPosition.mockImplementation((success: any) => success({
+      coords: { latitude: 100, longitude: -121, accuracy: 5 }, timestamp: 1000,
+    }));
+    await expect(getCurrentPosition()).rejects.toThrow('invalid location');
   });
 });

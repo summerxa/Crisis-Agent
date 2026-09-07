@@ -38,6 +38,7 @@ function isChatMessage(value: unknown): value is ChatMessage {
     typeof message.id === 'number' &&
     (message.role === 'user' || message.role === 'assistant') &&
     typeof message.text === 'string' &&
+    (message.usedPreviousContext === undefined || typeof message.usedPreviousContext === 'boolean') &&
     (message.citations === undefined || isStringArray(message.citations))
   );
 }
@@ -71,10 +72,11 @@ function nextMessageId(messages: ChatMessage[]) {
 }
 
 function chatStatusText(crisisData: CrisisDataState) {
-  if (crisisData.loading || crisisData.todoListAgent.loading || !crisisData.todoListAgent.data) {
+  if (crisisData.loading || crisisData.todoListAgent.loading) {
     return 'Refreshing current crisis context';
   }
-  if (!crisisData.snapshot) return 'Refresh status to start chat';
+  if (!crisisData.snapshot || !crisisData.todoListAgent.data) return 'Refresh status to start chat';
+  if (crisisData.refreshError) return 'Refresh failed · Using previous context';
 
   return 'Current context ready';
 }
@@ -109,6 +111,8 @@ export function useSessionChat({
   const idRef = useRef(0);
   const mounted = useRef(true);
   const todoData = crisisData.todoListAgent.data;
+  const latestSnapshot = useRef(crisisData.snapshot);
+  useEffect(() => { latestSnapshot.current = crisisData.snapshot; }, [crisisData.snapshot]);
   const chatReady = !!crisisData.snapshot && !!todoData && !crisisData.loading && !crisisData.todoListAgent.loading;
   const disabled = !hydrated || !chatReady || isSubmitting || chatAgent.loading;
   const statusText = chatStatusText(crisisData);
@@ -183,16 +187,18 @@ export function useSessionChat({
     ]);
     setInput('');
     setIsSubmitting(true);
+    const requestSnapshot = crisisData.snapshot!;
 
     try {
       const response = await chatAgent.getChatAgentResponse({
         sessionId,
         prompt: trimmed,
-        disasterSnapshot: crisisData.snapshot!,
+        disasterSnapshot: requestSnapshot,
         previousSnapshot: crisisData.previousSnapshot,
         disasterWriteup: todoData!.disaster_state_writeup,
         todoWriteup: todoData!.disaster_response_writeup,
       });
+      if (!mounted.current) return;
       setMessages(prev => [
         ...prev,
         {
@@ -200,10 +206,12 @@ export function useSessionChat({
           role: 'assistant',
           text: response.answer,
           citations: response.citations,
+          usedPreviousContext: latestSnapshot.current !== requestSnapshot,
         },
       ]);
       setFollowUpPrompts(response.follow_up_questions.filter(Boolean));
     } catch (caught) {
+      if (!mounted.current) return;
       const message = caught instanceof Error ? caught.message : 'ChatAgent request failed.';
       setMessages(prev => [
         ...prev,

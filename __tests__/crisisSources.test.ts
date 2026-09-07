@@ -68,3 +68,37 @@ test('requests the Current service with a server-side active-wildfire filter', a
     globalThis.fetch = originalFetch;
   }
 });
+
+test.each([null, {}, { error: { message: 'Service unavailable' } }, { features: 'invalid' }])(
+  'malformed source payload is a failure, not an empty success: %j', async body => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => body })
+      .mockResolvedValueOnce({ ok: true, json: async () => body });
+    try {
+      const result = await fetchCrisisFeatures({ latitude: 37, longitude: -121, accuracy: 0, timestamp: now });
+      expect(result.sourceHealth.nws.status).toBe('error');
+      expect(result.sourceHealth.wfigs.status).toBe('error');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  },
+);
+
+test('both sources start concurrently and receive the same cancellation signal', async () => {
+  const originalFetch = globalThis.fetch;
+  const resolvers: ((value: unknown) => void)[] = [];
+  const requests = jest.fn(() => new Promise(resolve => { resolvers.push(resolve); }));
+  globalThis.fetch = requests as unknown as typeof fetch;
+  const controller = new AbortController();
+  try {
+    const pending = fetchCrisisFeatures({ latitude: 37, longitude: -121, accuracy: 0, timestamp: now }, controller.signal);
+    expect(requests).toHaveBeenCalledTimes(2);
+    expect(requests).toHaveBeenNthCalledWith(1, expect.any(String), expect.objectContaining({ signal: controller.signal }));
+    expect(requests).toHaveBeenNthCalledWith(2, expect.any(String), expect.objectContaining({ signal: controller.signal }));
+    resolvers.forEach(resolve => resolve({ ok: true, json: async () => ({ features: [] }) }));
+    await expect(pending).resolves.toMatchObject({ features: [], sourceHealth: { nws: { status: 'ok' }, wfigs: { status: 'ok' } } });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

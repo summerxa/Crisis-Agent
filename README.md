@@ -13,6 +13,14 @@ The application expects separate, restricted Google Maps SDK keys for Android an
 
 The app requests foreground location only. It acquires one position when it opens and again when the existing Refresh button is used; it does not track in the background.
 
+## Refresh and agent configuration
+
+Set `AGENT_URL` in your local `.env` to the existing agent API base URL. Real TodoList and ChatAgent requests are the default (`USE_MOCK_AGENT_RESPONSE=false`); set it to `true` only for explicit mock development. Rebuild the native app after changing `.env` so React Native Config picks up the setting.
+
+Startup and Refresh acquire location, fetch NWS and WFIGS, and wait for a validated TodoList response before replacing the current situation. Any failure or a 120-second deadline preserves the last successful location, disaster information, plan, and comparison history for this app session. Home shows the failure and offers Retry. The four loading steps use timers, with the final step waiting for completion.
+
+Chat keeps its history and drafts. Each new question includes the last successfully committed snapshot and plan writeups; refresh itself does not send a chat message. Chat submissions pause during refresh and resume with the retained context after a failure.
+
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
 
 ## Step 1: Start Metro

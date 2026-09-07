@@ -8,7 +8,7 @@ import ChatScreen from './src/screens/ChatScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import MapScreen from './src/screens/MapScreen';
 import { styles } from './src/styles';
-import type { AppTab, HomePhase } from './src/types';
+import type { AppTab } from './src/types';
 import { useCrisisData } from './src/hooks/useCrisisData';
 import { useSessionChat } from './src/hooks/useSessionChat';
 import { getOrCreateSessionId } from './src/services/sessionStorage';
@@ -40,7 +40,6 @@ class ErrorBoundary extends Component<
 
 function AppBody({ sessionId }: { sessionId: string }) {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
-  const [homePhase, setHomePhase] = useState<HomePhase>('no-crisis');
   const crisisData = useCrisisData({ sessionId });
   const sessionChat = useSessionChat({ sessionId, crisisData });
 
@@ -50,8 +49,6 @@ function AppBody({ sessionId }: { sessionId: string }) {
         <ErrorBoundary>
           {activeTab === 'home' && (
             <HomeScreen
-              phase={homePhase}
-              setPhase={setHomePhase}
               onNavigate={setActiveTab}
               crisisData={crisisData}
             />

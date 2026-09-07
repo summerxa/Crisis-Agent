@@ -16,13 +16,21 @@ function iso(value: unknown, fallback: string) {
   return date && !Number.isNaN(date.valueOf()) ? date.toISOString() : fallback;
 }
 
-async function fetchNws(position: Position): Promise<CrisisFeature[]> {
+function validateCollection(body: Json, source: string) {
+  if (!body || typeof body !== 'object' || body.error || !Array.isArray(body.features)) {
+    throw new Error(`${source} returned invalid source data.`);
+  }
+}
+
+async function fetchNws(position: Position, signal?: AbortSignal): Promise<CrisisFeature[]> {
   const url = `https://api.weather.gov/alerts/active?point=${position.latitude},${position.longitude}`;
   const response = await fetch(url, {
     headers: { Accept: 'application/geo+json', 'User-Agent': 'CrisisAgent/0.0.1' },
+    signal,
   });
   if (!response.ok) throw new Error(`NWS returned ${response.status}`);
   const body = (await response.json()) as Json;
+  validateCollection(body, 'NWS');
   const now = new Date().toISOString();
   return (Array.isArray(body.features) ? body.features : []).flatMap((item: Json) => {
     const geometry = parseGeometry(item.geometry);
@@ -45,7 +53,7 @@ async function fetchNws(position: Position): Promise<CrisisFeature[]> {
   });
 }
 
-async function fetchWfigs(position: Position): Promise<CrisisFeature[]> {
+async function fetchWfigs(position: Position, signal?: AbortSignal): Promise<CrisisFeature[]> {
   const radius = 1.5;
   const envelope = [
     position.longitude - radius,
@@ -58,9 +66,10 @@ async function fetchWfigs(position: Position): Promise<CrisisFeature[]> {
     inSR: '4326', outSR: '4326', spatialRel: 'esriSpatialRelIntersects',
     outFields: '*', returnGeometry: 'true', f: 'geojson',
   });
-  const response = await fetch(`${WFIGS_URL}?${params}`);
+  const response = await fetch(`${WFIGS_URL}?${params}`, { signal });
   if (!response.ok) throw new Error(`WFIGS returned ${response.status}`);
   const body = (await response.json()) as Json;
+  validateCollection(body, 'WFIGS');
   return parseWfigsFeatures(body, new Date().toISOString());
 }
 
@@ -101,9 +110,9 @@ export function parseWfigsFeatures(body: Json, now: string): CrisisFeature[] {
   });
 }
 
-export async function fetchCrisisFeatures(position: Position) {
+export async function fetchCrisisFeatures(position: Position, signal?: AbortSignal) {
   const checkedAt = new Date().toISOString();
-  const settled = await Promise.allSettled([fetchNws(position), fetchWfigs(position)]);
+  const settled = await Promise.allSettled([fetchNws(position, signal), fetchWfigs(position, signal)]);
   const health = (result: PromiseSettledResult<CrisisFeature[]>): SourceHealth =>
     result.status === 'fulfilled'
       ? { status: 'ok', checkedAt }

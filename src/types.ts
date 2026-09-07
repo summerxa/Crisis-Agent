@@ -1,5 +1,4 @@
 export type AppTab = 'home' | 'map' | 'chat';
-export type HomePhase = 'crisis' | 'no-crisis' | 'refreshing' | 'updated';
 export type LayerKey =
   | 'myLocation'
   | 'weatherAlerts'
@@ -13,6 +12,7 @@ export type ChatMessage = {
   role: 'user' | 'assistant';
   text: string;
   citations?: string[];
+  usedPreviousContext?: boolean;
 };
 
 export type SessionChatState = {
@@ -85,9 +85,15 @@ export type CrisisDataState = {
   loading: boolean;
   locationError: string | null;
   locationAccess: LocationAccessState;
-  refresh: () => Promise<void>;
+  refreshError: string | null;
+  refreshOutcome: 'idle' | 'refreshing' | 'success' | 'failure';
+  showRefresh: boolean;
+  refreshStep: number;
+  refresh: () => Promise<RefreshResult>;
   todoListAgent: TodoListAgentState;
 };
+
+export type RefreshResult = { success: true } | { success: false; error: string };
 
 export type TodoListAgentActionItem = {
   emoji: string;
@@ -117,7 +123,6 @@ export type TodoListAgentState = {
   loading: boolean;
   error: string | null;
   success: boolean;
-  getTodoListAgentResponse: (params: TodoListAgentRequest) => Promise<TodoListAgentResponse>;
 };
 
 export type ChatAgentResponse = {

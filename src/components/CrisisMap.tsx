@@ -78,7 +78,7 @@ export default function CrisisMap({ compact = false, layers, location, simulated
         mapType="standard"
         style={styles.liveMap}
         initialRegion={{ latitude: location?.latitude ?? 37.0902, longitude: location?.longitude ?? -95.7129, latitudeDelta: location ? 0.35 : 45, longitudeDelta: location ? 0.35 : 45 }}
-        showsUserLocation={Boolean(location && layers.myLocation && !simulatedPosition)}
+        showsUserLocation={false}
         showsMyLocationButton={false}
         toolbarEnabled={false}
         loadingEnabled
@@ -90,6 +90,9 @@ export default function CrisisMap({ compact = false, layers, location, simulated
           <Marker coordinate={location} title="Test location" description="This is not your current GPS position">
             <View style={styles.testLocationMarker}><Text style={styles.testLocationMarkerText}>T</Text></View>
           </Marker>
+        )}
+        {!simulatedPosition && location && layers.myLocation && (
+          <Marker coordinate={location} title="Your location" description="Location from your last successful refresh" pinColor={COLORS.blue} />
         )}
       </MapView>
       {compact && <View style={styles.legend} pointerEvents="none">

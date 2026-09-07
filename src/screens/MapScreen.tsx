@@ -42,13 +42,15 @@ export default function MapScreen({
     evacWarning: false,
     evacOrder: false,
   });
-  const [selected, setSelected] = useState<CrisisFeature | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [locationTestMode, setLocationTestMode] = useState(false);
   const [latitudeText, setLatitudeText] = useState('');
   const [longitudeText, setLongitudeText] = useState('');
   const [testData, setTestData] = useState<TestData>(initialTestData);
   const testRequestGuard = useRef(new TestLocationRequestGuard());
   const snapshot = crisisData.snapshot;
+  const selected = (locationTestMode ? testData.features : snapshot?.features ?? [])
+    .find(feature => feature.id === selectedId) ?? null;
   const activeLocation = locationTestMode ? testData.position : snapshot?.location ?? null;
   const locationLabel = activeLocation
     ? `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`
@@ -57,7 +59,7 @@ export default function MapScreen({
   const exitTestMode = () => {
     testRequestGuard.current.cancel();
     setLocationTestMode(false);
-    setSelected(null);
+    setSelectedId(null);
     setTestData(initialTestData);
   };
 
@@ -69,7 +71,7 @@ export default function MapScreen({
     }
     const position = validation.position;
     const requestId = testRequestGuard.current.begin();
-    setSelected(null);
+    setSelectedId(null);
     setTestData(previous => ({ ...previous, position, loading: true, message: null }));
     try {
       const result = await fetchCrisisFeatures(position);
@@ -108,7 +110,7 @@ export default function MapScreen({
         {__DEV__ && <Pressable
           accessibilityRole="switch"
           accessibilityState={{ checked: locationTestMode }}
-          onPress={() => locationTestMode ? exitTestMode() : (setLocationTestMode(true), setSelected(null))}
+          onPress={() => locationTestMode ? exitTestMode() : (setLocationTestMode(true), setSelectedId(null))}
           style={[styles.testModeToggle, locationTestMode && styles.testModeToggleActive]}>
           <View style={[styles.testModeDot, locationTestMode && styles.testModeDotActive]} />
           <Text style={[styles.testModeText, locationTestMode && styles.testModeTextActive]}>{locationTestMode ? 'Use GPS' : 'Test location'}</Text>
@@ -134,9 +136,11 @@ export default function MapScreen({
           simulatedPosition={locationTestMode}
           features={locationTestMode ? testData.features : snapshot?.features ?? []}
           loading={locationTestMode ? testData.loading : crisisData.loading}
-          stale={locationTestMode ? testData.stale : snapshot?.stale}
-          statusMessage={locationTestMode ? 'Live test results may be incomplete' : undefined}
-          onSelectFeature={setSelected}
+          stale={locationTestMode ? testData.stale : snapshot?.stale || !!crisisData.refreshError}
+          statusMessage={locationTestMode ? 'Live test results may be incomplete' : crisisData.refreshError
+            ? snapshot ? 'Refresh failed · Showing previous information' : 'Situation unavailable · Retry from Home'
+            : undefined}
+          onSelectFeature={feature => setSelectedId(feature.id)}
         />
         <View style={styles.layerWrap}>
           {LAYERS.map(layer => {
@@ -180,7 +184,7 @@ export default function MapScreen({
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{selected.title}</Text>
-            <Pressable onPress={() => setSelected(null)} style={styles.closeButton}>
+            <Pressable onPress={() => setSelectedId(null)} style={styles.closeButton}>
               <Text style={styles.closeText}>×</Text>
             </Pressable>
           </View>

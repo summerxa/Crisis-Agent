@@ -41,6 +41,9 @@ export default function ChatScreen({ chat }: { chat: SessionChatState }) {
               {message.role === 'assistant' && !!message.citations?.length && (
                 <Text style={styles.messageSource}>ⓘ {message.citations.join(', ')}</Text>
               )}
+              {message.usedPreviousContext && (
+                <Text style={styles.messageSource}>Answered using your previous update</Text>
+              )}
             </View>
           </View>
         ))}

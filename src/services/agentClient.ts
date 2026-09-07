@@ -84,12 +84,14 @@ export async function postAgentPrompt<TResponse>({
   prompt,
   agentName,
   assertResponse,
+  signal,
 }: {
   path: string;
   sessionId: string;
   prompt: string;
   agentName: string;
   assertResponse: (value: unknown) => TResponse;
+  signal?: AbortSignal;
 }) {
   if (!AGENT_URL) {
     throw new Error('AGENT_URL is not configured.');
@@ -107,7 +109,7 @@ export async function postAgentPrompt<TResponse>({
     body: requestBody,
   };
 
-  const response = await fetch(url, request);
+  const response = await fetch(url, { ...request, signal });
 
   const responseText = await response.text();
   if (!response.ok) {
