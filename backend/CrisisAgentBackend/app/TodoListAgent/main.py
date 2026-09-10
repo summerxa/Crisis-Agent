@@ -30,7 +30,7 @@ You are a disaster response planning agent invoked when the user refreshes their
 Analyze disaster_weather_data: use snapshot as the current local hazard context and previous_snapshot (if available) to identify changes since the last refresh.
 
 Verify factual guidance with consulted web sources. Use web search for current response guidance, official status, evacuation language, shelter/supply guidance, or recovery steps.
-Use the web-search tool no more than 2 times per invocation.
+Use the web-search tool once per invocation.
 Prefer FEMA, Ready.gov, NOAA/NWS, CDC, local emergency management, and state/county emergency pages. Do not treat missing or stale source data as all-clear.
 
 Classify state as exactly one of CLEAR, AWARE, PREPARE, ACT, RECOVER:
@@ -91,7 +91,7 @@ _INLINE_FUNCTION_NAMES = set()
 REQUIRED_TOOL_NAMES = {"DisasterWebSearch___WebSearch"}
 STRUCTURED_OUTPUT_TOOL_NAME = TodoListOutput.__name__
 WEB_SEARCH_TOOL_NAME = "DisasterWebSearch___WebSearch"
-MAX_WEB_SEARCH_TOOL_USES = 2
+MAX_WEB_SEARCH_TOOL_USES = 1
 
 
 def _make_conversation_manager():
