@@ -16,7 +16,7 @@ function respond(response: unknown) {
   mockFetch.mockResolvedValueOnce({ ok: true, text: async () => JSON.stringify({ body: { response } }) });
 }
 
-test('real request includes current and previous snapshots, and propagates abort signal', async () => {
+test('real request includes compact context and comparison, and propagates abort signal', async () => {
   respond(plan);
   const controller = new AbortController();
   await expect(fetchTodoListAgentResponse({ sessionId: 'session', crisisSnapshot: snapshot, previousSnapshot: snapshot }, controller.signal)).resolves.toEqual(plan);
@@ -25,8 +25,17 @@ test('real request includes current and previous snapshots, and propagates abort
   expect(request.signal).toBe(controller.signal);
   const body = JSON.parse(request.body);
   expect(body.sessionId).toBe('session');
-  expect(body.prompt).toContain('previous_snapshot');
+  expect(body.prompt).toContain('comparison');
   expect(body.prompt).toContain(snapshot.fetchedAt);
+});
+
+test('prompt length targets do not reject or truncate long, otherwise valid output', async () => {
+  const longText = 'Important full detail. '.repeat(1000);
+  const response = { ...plan, subtitle: longText, description: longText, change_items: [longText],
+    action_items: [{ ...plan.action_items[0], short_description: longText, long_description: longText }],
+    disaster_state_writeup: longText, disaster_response_writeup: longText };
+  respond(response);
+  await expect(fetchTodoListAgentResponse({ sessionId: 'session', crisisSnapshot: snapshot })).resolves.toEqual(response);
 });
 
 test.each([

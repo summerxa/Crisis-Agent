@@ -1,8 +1,7 @@
 import Config from 'react-native-config';
+import { AGENT_CONTEXT_GUIDANCE, buildAgentContext } from './agentContext';
 import type {
-  CrisisFeature,
   CrisisSnapshot,
-  SourceHealth,
   TodoListAgentRequest,
   TodoListAgentResponse,
 } from '../types';
@@ -41,61 +40,16 @@ const MOCK_TODO_LIST_AGENT_RESPONSE: TodoListAgentResponse = {
 
 export const TODO_LIST_AGENT_PATH = '/agents/todolist/invocations';
 
-type TodoListSourceData = {
-  health: SourceHealth | null;
-  features: CrisisFeature[];
-};
-
-type TodoListDisasterWeatherData = {
-  location: CrisisSnapshot['location'];
-  fetchedAt: string;
-  stale: boolean;
-  sources: Record<'nws' | 'wfigs', TodoListSourceData>;
-  all_features: CrisisFeature[];
-  previous_snapshot: CrisisSnapshot | null;
-};
-
-function getFeatureSources(features: CrisisFeature[]) {
-  return {
-    nws: features.filter(feature => feature.id.startsWith('nws:')),
-    wfigs: features.filter(feature => feature.id.startsWith('wfigs:')),
-  };
-}
-
-export function buildTodoListDisasterWeatherData(
-  crisisSnapshot: CrisisSnapshot,
-  previousSnapshot?: CrisisSnapshot | null,
-): TodoListDisasterWeatherData {
-  const sourceFeatures = getFeatureSources(crisisSnapshot.features);
-
-  return {
-    location: crisisSnapshot.location,
-    fetchedAt: crisisSnapshot.fetchedAt,
-    stale: crisisSnapshot.stale,
-    sources: {
-      nws: {
-        health: crisisSnapshot.sourceHealth.nws ?? null,
-        features: sourceFeatures.nws,
-      },
-      wfigs: {
-        health: crisisSnapshot.sourceHealth.wfigs ?? null,
-        features: sourceFeatures.wfigs,
-      },
-    },
-    all_features: crisisSnapshot.features,
-    previous_snapshot: previousSnapshot ?? null,
-  };
-}
-
 export function buildTodoListAgentPrompt(
   crisisSnapshot: CrisisSnapshot,
   previousSnapshot?: CrisisSnapshot | null,
 ) {
-  const disasterWeatherData = buildTodoListDisasterWeatherData(crisisSnapshot, previousSnapshot);
+  const disasterWeatherData = buildAgentContext(crisisSnapshot, previousSnapshot);
 
   return (
     'The user refreshed their disaster status. Analyze the current snapshot, compare it with ' +
-    'previous_snapshot when present, and produce the required structured output.\n\n' +
+    'the supplied comparison when available, and produce the required structured output.\n\n' +
+    AGENT_CONTEXT_GUIDANCE + '\n\n' +
     `disaster_weather_data: ${JSON.stringify(disasterWeatherData)}`
   );
 }

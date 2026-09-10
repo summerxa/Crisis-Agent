@@ -21,6 +21,16 @@ Startup and Refresh acquire location, fetch NWS and WFIGS, and wait for a valida
 
 Chat keeps its history and drafts. Each new question includes the last successfully committed snapshot and plan writeups; refresh itself does not send a chat message. Chat submissions pause during refresh and resume with the retained context after a failure.
 
+### Compact agent context
+
+TodoList and Chat receive a shared compact context: each current feature once, full official descriptions and source attribution, and approximate spatial relationships instead of map polygons. Full geometry stays in the app. Distance is in miles to the affected area (zero inside/on the boundary), or to a point; unknown spatial context is never treated as outside.
+
+Comparisons use source record IDs from the last successful refresh. They include added IDs, compact removed records, and only previous values of changed fields. Source-time, geometry, and user-proximity changes are distinguished. Missing/duplicate IDs are uncomparable; a record leaving the result does not establish that a disaster ended. The first refresh explicitly has no baseline.
+
+TodoList output length targets are system-prompt guidance only. Long, otherwise valid responses are accepted in full. Model choice and the one-search limit are unchanged.
+
+Run `npm test -- --runInBand --testPathIgnorePatterns=backend` for frontend checks. The polygon-heavy fixture in `agentContext.test.ts` reports serialized UTF-8 bytes before/after compaction; this is not measured model token usage or a latency guarantee. Run `python -B -m unittest discover -s backend/CrisisAgentBackend/tests -v` with the TodoList environment for offline backend checks.
+
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
 
 ## Step 1: Start Metro

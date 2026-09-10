@@ -16,6 +16,7 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native-community/geolocation": "^3.4.0",
+    "@turf/point-to-polygon-distance": "7.4.0",
     "react": "19.2.3",
     "react-native": "0.87.0",
     "react-native-config": "^1.7.2",

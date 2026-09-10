@@ -1,5 +1,5 @@
 import type { ChatAgentRequest, ChatAgentResponse } from '../types';
-import { buildTodoListDisasterWeatherData } from './todoListAgent';
+import { AGENT_CONTEXT_GUIDANCE, buildAgentContext } from './agentContext';
 import { postAgentPrompt } from './agentClient';
 
 export const CHAT_AGENT_PATH = '/agents/chat/invocations';
@@ -11,10 +11,11 @@ export function buildChatAgentPrompt({
   disasterWriteup,
   todoWriteup,
 }: Omit<ChatAgentRequest, 'sessionId'>) {
-  const snapshotJson = JSON.stringify(buildTodoListDisasterWeatherData(disasterSnapshot, previousSnapshot));
+  const snapshotJson = JSON.stringify(buildAgentContext(disasterSnapshot, previousSnapshot));
 
   return (
     `User question: ${prompt}\n\n` +
+    AGENT_CONTEXT_GUIDANCE + '\n\n' +
     `disaster_snapshot: ${snapshotJson}\n\n` +
     `disaster_writeup: ${disasterWriteup}\n\n` +
     `todo_writeup: ${todoWriteup}`

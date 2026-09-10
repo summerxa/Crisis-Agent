@@ -11,6 +11,10 @@ function text(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+function sourceId(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : text(value);
+}
+
 function iso(value: unknown, fallback: string) {
   const date = typeof value === 'number' || typeof value === 'string' ? new Date(value) : null;
   return date && !Number.isNaN(date.valueOf()) ? date.toISOString() : fallback;
@@ -88,7 +92,7 @@ export function parseWfigsFeatures(body: Json, now: string): CrisisFeature[] {
       p.attr_ActiveFireCandidate === 1 &&
       (p.attr_FireOutDateTime === null || p.attr_FireOutDateTime === undefined);
     if (!geometry || !isActiveWildfire) return [];
-    const rawId = text(p.GlobalID ?? p.OBJECTID ?? item.id, String(index));
+    const rawId = sourceId(p.GlobalID) || sourceId(p.OBJECTID) || sourceId(item.id);
     const title = text(p.attr_IncidentName ?? p.poly_IncidentName, 'Wildfire perimeter');
     const containment = numeric(p.attr_PercentContained);
     const acres = numeric(p.poly_GISAcres ?? p.attr_IncidentSize);
@@ -96,7 +100,7 @@ export function parseWfigsFeatures(body: Json, now: string): CrisisFeature[] {
       ? `Active wildfire · ${Math.round(containment)}% contained`
       : 'Active wildfire';
     return [{
-      id: `wfigs:${rawId}`,
+      id: `wfigs:${rawId || `unidentified:${index}`}`,
       kind: 'wildfire' as const,
       geometry,
       title,

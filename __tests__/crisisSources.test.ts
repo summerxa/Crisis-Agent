@@ -39,6 +39,16 @@ test('maps an active wildfire with containment, acreage, source, and latest peri
   expect(features[0].sourceUrl).toContain('WFIGS_Interagency_Perimeters_Current');
 });
 
+test.each([0, 73])('uses numeric WFIGS OBJECTID %s as a source ID rather than array position', id => {
+  const result = parseWfigsFeatures({ features: [perimeter({ GlobalID: null, OBJECTID: id })] }, now);
+  expect(result[0]).toMatchObject({ id: `wfigs:${id}`, rawSourceId: String(id) });
+});
+
+test('missing WFIGS IDs retain a map-only fallback but no comparable source identity', () => {
+  const result = parseWfigsFeatures({ features: [perimeter({ GlobalID: null })] }, now);
+  expect(result[0]).toMatchObject({ id: 'wfigs:unidentified:0', rawSourceId: '' });
+});
+
 test.each([
   ['prescribed fire', { attr_IncidentTypeCategory: 'RX' }],
   ['inactive fire', { attr_ActiveFireCandidate: 0 }],
