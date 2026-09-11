@@ -13,7 +13,6 @@ from strands.hooks import (
     HookOrder,
     HookRegistry,
 )
-from bedrock_agentcore.gateway.integrations.strands.plugins import AgentCoreToolSearchPlugin
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
 from mcp_client.client import get_web_search_mcp_client
@@ -102,12 +101,6 @@ MAX_WEB_SEARCH_TOOL_USES = 1
 
 def _make_conversation_manager():
     return NullConversationManager()
-
-
-def _make_plugins():
-    gateway_plugins = [AgentCoreToolSearchPlugin(mcp_client=mcp_client) for mcp_client in mcp_clients if mcp_client]
-    log.info("Configured AgentCore tool-search plugins: %d", len(gateway_plugins))
-    return gateway_plugins
 
 
 def _registered_tool_names(agent: Agent) -> set[str]:
@@ -260,7 +253,6 @@ def agent_factory():
             system_prompt=DEFAULT_SYSTEM_PROMPT,
             structured_output_model=TodoListOutput,
             tools=tools,
-            plugins=_make_plugins(),
             conversation_manager=_make_conversation_manager(),
             hooks=[
                 RequiredToolAssertion(),

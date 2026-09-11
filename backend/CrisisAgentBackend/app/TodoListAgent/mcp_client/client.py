@@ -76,4 +76,7 @@ def get_web_search_mcp_client() -> MCPClient | None:
     elif auth_type not in {"NONE", ""}:
         raise RuntimeError(f"Unsupported AgentCore Gateway auth type: {auth_type}")
 
-    return MCPClient(lambda: streamablehttp_client(gateway_url, auth=auth))
+    return MCPClient(
+        lambda: streamablehttp_client(gateway_url, auth=auth),
+        tool_filters={"allowed": ["DisasterWebSearch___WebSearch"]},
+    )
