@@ -6,6 +6,7 @@ from strands.agent.conversation_manager.sliding_window_conversation_manager impo
 from strands.hooks import (
     AfterToolCallEvent,
     AfterToolsEvent,
+    BeforeToolCallEvent,
     BeforeModelCallEvent,
     BeforeToolsEvent,
     HookOrder,
@@ -59,6 +60,8 @@ log.info("Configured static tools/providers: %d", len(tools))
 _INLINE_FUNCTION_NAMES = set()
 REQUIRED_TOOL_NAMES = {"DisasterWebSearch___WebSearch"}
 STRUCTURED_OUTPUT_TOOL_NAME = ChatOutput.__name__
+WEB_SEARCH_TOOL_NAME = "DisasterWebSearch___WebSearch"
+MAX_WEB_SEARCH_TOOL_USES = 1
 
 
 def _make_conversation_manager():
@@ -168,6 +171,40 @@ class StructuredOutputTerminator:
             log.info("Ending ChatAgent turn immediately after ChatOutput")
 
 
+class WebSearchUsageLimiter:
+    def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
+        registry.add_callback(BeforeToolCallEvent, self.limit_web_search_usage, order=HookOrder.SDK_FIRST)
+
+    def limit_web_search_usage(self, event: BeforeToolCallEvent) -> None:
+        if event.tool_use.get("name") != WEB_SEARCH_TOOL_NAME:
+            return
+
+        usage_count = event.invocation_state.get("chat_web_search_usage_count", 0)
+        if not isinstance(usage_count, int):
+            usage_count = 0
+
+        if usage_count >= MAX_WEB_SEARCH_TOOL_USES:
+            event.cancel_tool = (
+                f"{WEB_SEARCH_TOOL_NAME} usage limit reached: "
+                f"{MAX_WEB_SEARCH_TOOL_USES} calls allowed per ChatAgent invocation."
+            )
+            log.warning(
+                "Cancelled %s call because usage_count=%d limit=%d",
+                WEB_SEARCH_TOOL_NAME,
+                usage_count,
+                MAX_WEB_SEARCH_TOOL_USES,
+            )
+            return
+
+        event.invocation_state["chat_web_search_usage_count"] = usage_count + 1
+        log.info(
+            "Allowing %s call %d/%d",
+            WEB_SEARCH_TOOL_NAME,
+            usage_count + 1,
+            MAX_WEB_SEARCH_TOOL_USES,
+        )
+
+
 # Reuses one Agent per session_id so each session keeps its own in-process
 # conversation history (best-effort; resets on cold start). The cache is bounded
 # to 128 sessions with LRU eviction (least-recently-used is dropped and its
@@ -191,6 +228,7 @@ def agent_factory():
             conversation_manager=_make_conversation_manager(),
             hooks=[
                 RequiredToolAssertion(),
+                WebSearchUsageLimiter(),
                 StructuredOutputTerminator(),
             ],
         )
