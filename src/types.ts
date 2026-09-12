@@ -1,4 +1,5 @@
 export type AppTab = 'home' | 'map' | 'chat';
+export type ChatPromptCorner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 export type LayerKey =
   | 'myLocation'
   | 'weatherAlerts'

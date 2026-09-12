@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { COLORS, REFRESH_STEPS } from '../constants';
 import { styles } from '../styles';
-import type { AppTab, CrisisDataState, CrisisFeature, LayerKey, StatusLevel } from '../types';
+import type { AppTab, ChatPromptCorner, CrisisDataState, CrisisFeature, LayerKey, StatusLevel } from '../types';
 import CrisisMap from '../components/CrisisMap';
 import ChatPrompt from '../components/ChatPrompt';
 import { ActionItem, ChangeItem, Divider, InfoBlock, SectionLabel, SourceTag, StatusBadge } from '../components/common';
@@ -14,6 +14,7 @@ const defaultLayers: Record<LayerKey, boolean> = {
   evacWarning: false,
   evacOrder: false,
 };
+const CHAT_PROMPT_TOP_BOUNDARY = 72;
 
 function locationLabel(data: CrisisDataState) {
   const location = data.snapshot?.location;
@@ -132,25 +133,40 @@ function sourceRows(data: CrisisDataState) {
 export default function HomeScreen({
   onNavigate,
   crisisData,
+  chatPromptCorner,
+  onChatPromptCornerChange,
 }: {
   onNavigate: (tab: AppTab) => void;
   crisisData: CrisisDataState;
+  chatPromptCorner: ChatPromptCorner;
+  onChatPromptCornerChange: (corner: ChatPromptCorner) => void;
 }) {
-  if (crisisData.showRefresh) {
-    return <RefreshingContent data={crisisData} />;
-  }
+  const [sourcesOpen, setSourcesOpen] = useState(false);
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <CrisisContent
-          onNavigate={onNavigate}
-          onRefresh={() => { crisisData.refresh(); }}
-          crisisData={crisisData}
-        />
-      </ScrollView>
-
-      <ChatPrompt onPress={() => onNavigate('chat')} />
+    <View style={styles.screen}>
+      {crisisData.showRefresh ? (
+        <RefreshingContent data={crisisData} />
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            <CrisisContent
+              onNavigate={onNavigate}
+              onRefresh={() => { crisisData.refresh(); }}
+              crisisData={crisisData}
+              sourcesOpen={sourcesOpen}
+              onSourcesOpenChange={setSourcesOpen}
+            />
+          </ScrollView>
+        </>
+      )}
+      <ChatPrompt
+        corner={chatPromptCorner}
+        onCornerChange={onChatPromptCornerChange}
+        onPress={() => onNavigate('chat')}
+        topBoundaryInset={CHAT_PROMPT_TOP_BOUNDARY}
+        visible={!crisisData.showRefresh}
+      />
     </View>
   );
 }
@@ -184,12 +200,15 @@ function CrisisContent({
   onNavigate,
   onRefresh,
   crisisData,
+  sourcesOpen,
+  onSourcesOpenChange,
 }: {
   onNavigate: (tab: AppTab) => void;
   onRefresh: () => void;
   crisisData: CrisisDataState;
+  sourcesOpen: boolean;
+  onSourcesOpenChange: (open: boolean | ((open: boolean) => boolean)) => void;
 }) {
-  const [sourcesOpen, setSourcesOpen] = useState(false);
   const snapshot = crisisData.snapshot;
   const features = snapshot?.features ?? [];
   const agentData = crisisData.todoListAgent.data;
@@ -297,7 +316,7 @@ function CrisisContent({
       </View>
 
       <Pressable
-        onPress={() => setSourcesOpen(open => !open)}
+        onPress={() => onSourcesOpenChange(open => !open)}
         style={[styles.card, styles.sourcesButton]}>
         <Text style={styles.sourceButtonText}>ⓘ Sources & attribution</Text>
         <Text style={styles.actionToggleText}>{sourcesOpen ? '∧' : '∨'}</Text>

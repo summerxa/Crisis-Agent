@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { LAYERS } from '../constants';
 import { layerChipStyles, layerDotStyles, layerTextStyles, styles } from '../styles';
-import type { AppTab, CrisisDataState, CrisisFeature, LayerKey, Position, SourceHealth } from '../types';
+import type { AppTab, ChatPromptCorner, CrisisDataState, CrisisFeature, LayerKey, Position, SourceHealth } from '../types';
 import CrisisMap from '../components/CrisisMap';
 import ChatPrompt from '../components/ChatPrompt';
 import { fetchCrisisFeatures } from '../services/crisisSources';
@@ -25,15 +25,20 @@ const initialTestData: TestData = {
   stale: false,
   message: null,
 };
+const CHAT_PROMPT_TOP_BOUNDARY = 72;
 
 export default function MapScreen({
   onBack,
   onNavigate,
   crisisData,
+  chatPromptCorner,
+  onChatPromptCornerChange,
 }: {
   onBack: () => void;
   onNavigate: (tab: AppTab) => void;
   crisisData: CrisisDataState;
+  chatPromptCorner: ChatPromptCorner;
+  onChatPromptCornerChange: (corner: ChatPromptCorner) => void;
 }) {
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     myLocation: true,
@@ -207,7 +212,12 @@ export default function MapScreen({
           </View>
         </View>
       )}
-      <ChatPrompt onPress={() => onNavigate('chat')} /> 
+      <ChatPrompt
+        corner={chatPromptCorner}
+        onCornerChange={onChatPromptCornerChange}
+        onPress={() => onNavigate('chat')}
+        topBoundaryInset={CHAT_PROMPT_TOP_BOUNDARY}
+      />
     </View>
   );
 }
