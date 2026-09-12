@@ -164,13 +164,34 @@ export const styles = StyleSheet.create({
   },
   actionCopy: {
     flex: 1,
-    paddingTop: 3,
+  },
+  actionSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 32,
   },
   actionText: {
+    flex: 1,
     color: COLORS.ink,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '700',
+  },
+  actionToggle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionToggleText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  actionDropdown: {
+    marginTop: 5,
   },
   actionDetail: {
     color: COLORS.body,

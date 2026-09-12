@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { STATUS_CONFIG } from '../constants';
 import { styles } from '../styles';
 import type { StatusLevel } from '../types';
@@ -47,17 +47,34 @@ export function ActionItem({
   icon?: string;
   citation?: string[];
 }) {
+  const [expanded, setExpanded] = React.useState(false);
   const fallbackIcons = ['⚠️', '📍', '📡', 'ⓘ'];
   const citationText = citation?.filter(Boolean).join(' · ');
+  const hasDropdown = !!detail || !!citationText;
   return (
     <View style={styles.actionItem}>
       <View style={styles.actionIcon}>
         <Text style={styles.actionIconText}>{icon ?? fallbackIcons[index] ?? 'ⓘ'}</Text>
       </View>
       <View style={styles.actionCopy}>
-        <Text style={styles.actionText}>{text}</Text>
-        {!!detail && <Text style={styles.actionDetail}>{detail}</Text>}
-        {!!citationText && <Text style={styles.actionCitation}>Source: {citationText}</Text>}
+        <View style={styles.actionSummaryRow}>
+          <Text style={styles.actionText}>{text}</Text>
+          {hasDropdown && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={expanded ? 'Collapse action details' : 'Expand action details'}
+              onPress={() => setExpanded(current => !current)}
+              style={styles.actionToggle}>
+              <Text style={styles.actionToggleText}>{expanded ? '∧' : '∨'}</Text>
+            </Pressable>
+          )}
+        </View>
+        {expanded && (
+          <View style={styles.actionDropdown}>
+            {!!detail && <Text style={styles.actionDetail}>{detail}</Text>}
+            {!!citationText && <Text style={styles.actionCitation}>Source: {citationText}</Text>}
+          </View>
+        )}
       </View>
     </View>
   );
