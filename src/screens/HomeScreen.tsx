@@ -142,6 +142,9 @@ export default function HomeScreen({
   onChatPromptCornerChange: (corner: ChatPromptCorner) => void;
 }) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const headerProps = crisisData.snapshot
+    ? { sync: syncLabel(crisisData), location: locationLabel(crisisData) }
+    : { sync: 'No live data available', location: 'Location unavailable' };
 
   return (
     <View style={styles.screen}>
@@ -149,6 +152,11 @@ export default function HomeScreen({
         <RefreshingContent data={crisisData} />
       ) : (
         <>
+          <Header
+            sync={headerProps.sync}
+            onRefresh={() => { crisisData.refresh(); }}
+            location={headerProps.location}
+          />
           <ScrollView contentContainerStyle={styles.scrollContent}>
             <CrisisContent
               onNavigate={onNavigate}
@@ -226,7 +234,6 @@ function CrisisContent({
   if (!snapshot) {
     return (
       <View>
-        <Header sync="No live data available" onRefresh={onRefresh} location="Location unavailable" />
         <View style={[styles.card, styles.cardPadded]} accessibilityRole="alert">
           <Text style={styles.errorTitle}>Situation unavailable</Text>
           <Text style={styles.bodyText}>{crisisData.refreshError ?? 'Refresh to check your area.'}</Text>
@@ -240,12 +247,6 @@ function CrisisContent({
 
   return (
     <View>
-      <Header
-        sync={syncLabel(crisisData)}
-        onRefresh={onRefresh}
-        location={locationLabel(crisisData)}
-      />
-
       {crisisData.refreshError && (
         <View style={[styles.card, styles.cardPadded]} accessibilityRole="alert">
           <Text style={styles.errorTitle}>Refresh failed · Showing previous information</Text>
