@@ -53,7 +53,9 @@ export default function MapScreen({
     .find(feature => feature.id === selectedId) ?? null;
   const activeLocation = locationTestMode ? testData.position : snapshot?.location ?? null;
   const locationLabel = activeLocation
-    ? `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`
+    ? locationTestMode
+      ? `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`
+      : snapshot?.locationPlace?.label ?? `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`
     : locationTestMode ? 'Enter a test location' : 'Waiting for location';
 
   const exitTestMode = () => {

@@ -38,6 +38,12 @@ export type Position = {
   timestamp: string;
 };
 
+export type LocationPlace = {
+  city: string;
+  country: string;
+  label: string;
+};
+
 export type LocationAccessState = 'checking' | 'granted' | 'denied' | 'error';
 
 export type GeoPoint = { type: 'Point'; coordinates: [number, number] };
@@ -74,6 +80,7 @@ export type SourceHealth = {
 
 export type CrisisSnapshot = {
   location: Position;
+  locationPlace?: LocationPlace;
   fetchedAt: string;
   features: CrisisFeature[];
   sourceHealth: Record<'nws' | 'wfigs', SourceHealth>;

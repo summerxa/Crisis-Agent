@@ -17,6 +17,8 @@ const defaultLayers: Record<LayerKey, boolean> = {
 
 function locationLabel(data: CrisisDataState) {
   const location = data.snapshot?.location;
+  const placeLabel = data.snapshot?.locationPlace?.label;
+  if (placeLabel) return placeLabel;
   return location
     ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
     : data.locationError ?? 'Getting your location';
@@ -314,14 +316,15 @@ function CrisisContent({
 function RefreshingContent({ data }: { data: CrisisDataState }) {
   const currentStep = data.refreshStep;
   const location = data.snapshot?.location;
+  const placeLabel = data.snapshot?.locationPlace?.label;
 
   return (
     <View style={styles.refreshingScreen}>
       <View style={styles.refreshLocation}>
         <Text style={styles.locationIcon}>⌖</Text>
-        <Text style={styles.locationText}>{location
+        <Text style={styles.locationText}>{placeLabel ?? (location
           ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
-          : 'Checking your location'}</Text>
+          : 'Checking your location')}</Text>
       </View>
       <View style={styles.bigSpinner}>
         <ActivityIndicator color={COLORS.navy} size="large" />

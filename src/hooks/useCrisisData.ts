@@ -3,6 +3,7 @@ import type { CrisisDataState, CrisisSnapshot, RefreshResult } from '../types';
 import { fetchCrisisFeatures } from '../services/crisisSources';
 import { getCurrentPosition, LocationPermissionDeniedError } from '../services/location';
 import { fetchTodoListAgentResponse } from '../services/todoListAgent';
+import { reverseGeocodePosition } from '../services/reverseGeocoder';
 
 export const REFRESH_TIMEOUT_MS = 120000;
 const STEP_INTERVAL_MS = 700;
@@ -69,7 +70,10 @@ export function useCrisisData({ sessionId }: { sessionId?: string } = {}): Crisi
       const location = await getCurrentPosition(signal);
       assertCurrent();
       locationAcquired = true;
-      const result = await fetchCrisisFeatures(location, signal);
+      const [result, locationPlace] = await Promise.all([
+        fetchCrisisFeatures(location, signal),
+        reverseGeocodePosition(location, signal),
+      ]);
       assertCurrent();
       const failures = Object.entries(result.sourceHealth).filter(([, health]) => health.status !== 'ok');
       if (failures.length) {
@@ -77,7 +81,7 @@ export function useCrisisData({ sessionId }: { sessionId?: string } = {}): Crisi
       }
       if (!sessionId) throw new Error('Session is unavailable. Please restart the app.');
       const snapshot: CrisisSnapshot = {
-        ...result, location, fetchedAt: new Date().toISOString(), stale: false,
+        ...result, location, ...(locationPlace ? { locationPlace } : {}), fetchedAt: new Date().toISOString(), stale: false,
       };
       setState(previous => ({ ...previous, todoListAgent: { ...previous.todoListAgent, loading: true } }));
       const plan = await fetchTodoListAgentResponse({ sessionId, crisisSnapshot: snapshot, previousSnapshot }, signal);
