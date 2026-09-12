@@ -300,7 +300,7 @@ function CrisisContent({
         onPress={() => setSourcesOpen(open => !open)}
         style={[styles.card, styles.sourcesButton]}>
         <Text style={styles.sourceButtonText}>ⓘ Sources & attribution</Text>
-        <Text style={styles.chevron}>{sourcesOpen ? '⌃' : '⌄'}</Text>
+        <Text style={styles.actionToggleText}>{sourcesOpen ? '∧' : '∨'}</Text>
       </Pressable>
       {sourcesOpen && (
         <View style={[styles.card, styles.sourcesList]}>

@@ -322,6 +322,9 @@ export const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
+    lineHeight: 14,
+    textAlign: 'center',
+    transform: [{ translateY: -1 }],
   },
   stepText: {
     color: COLORS.body,
