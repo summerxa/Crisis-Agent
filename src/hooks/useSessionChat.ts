@@ -106,6 +106,7 @@ export function useSessionChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [followUpPrompts, setFollowUpPrompts] = useState<string[]>(SUGGESTED_PROMPTS);
+  const [hasSentMessage, setHasSentMessage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const idRef = useRef(0);
@@ -132,6 +133,7 @@ export function useSessionChat({
     setMessages([]);
     setInput('');
     setFollowUpPrompts(SUGGESTED_PROMPTS);
+    setHasSentMessage(false);
     idRef.current = 0;
 
     AsyncStorage.getItem(chatHistoryStorageKey(sessionId))
@@ -145,6 +147,7 @@ export function useSessionChat({
         setMessages(nextMessages);
         setFollowUpPrompts(storedState?.followUpPrompts ?? SUGGESTED_PROMPTS);
         setInput(storedState?.input ?? '');
+        setHasSentMessage(false);
         idRef.current = nextMessageId(nextMessages);
         setHydrated(true);
       })
@@ -155,6 +158,7 @@ export function useSessionChat({
         setMessages(DEFAULT_CHAT_MESSAGES);
         setFollowUpPrompts(SUGGESTED_PROMPTS);
         setInput('');
+        setHasSentMessage(false);
         idRef.current = nextMessageId(DEFAULT_CHAT_MESSAGES);
         setHydrated(true);
       });
@@ -185,6 +189,7 @@ export function useSessionChat({
       ...prev,
       { id: idRef.current++, role: 'user', text: trimmed },
     ]);
+    setHasSentMessage(true);
     setInput('');
     setIsSubmitting(true);
     const requestSnapshot = crisisData.snapshot!;
@@ -233,6 +238,7 @@ export function useSessionChat({
     input,
     setInput,
     followUpPrompts,
+    showSuggestedQuestions: hydrated && !hasSentMessage,
     isSubmitting,
     hydrated,
     chatReady,

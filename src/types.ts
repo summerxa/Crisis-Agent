@@ -20,6 +20,7 @@ export type SessionChatState = {
   input: string;
   setInput: (input: string) => void;
   followUpPrompts: string[];
+  showSuggestedQuestions: boolean;
   isSubmitting: boolean;
   hydrated: boolean;
   chatReady: boolean;

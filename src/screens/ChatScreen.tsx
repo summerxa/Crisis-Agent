@@ -69,7 +69,7 @@ export default function ChatScreen({ chat }: { chat: SessionChatState }) {
         )}
       </ScrollView>
 
-      {!!chat.followUpPrompts.length && (
+      {chat.showSuggestedQuestions && !!chat.followUpPrompts.length && (
         <View style={styles.suggestions}>
           <Text style={styles.suggestionTitle}>Suggested questions</Text>
           <View style={styles.promptWrap}>

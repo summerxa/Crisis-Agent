@@ -37,7 +37,7 @@ Keep response concise (1 paragraph max). Do not use Markdown formatting besides 
 Output:
 - citations: non-empty list of cited external source names. All factual guidance must be verified by these sources.
 - answer: direct answer to the user's question.
-- follow_up_questions: useful follow-up questions the user could ask.
+- follow_up_questions: up to 3 useful follow-up questions the user could ask. Keep the questions short and simple.
 
 """
 
