@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { LAYERS } from '../constants';
 import { layerChipStyles, layerDotStyles, layerTextStyles, styles } from '../styles';
@@ -33,12 +33,16 @@ export default function MapScreen({
   crisisData,
   chatPromptCorner,
   onChatPromptCornerChange,
+  testLocation,
+  onTestLocationChange,
 }: {
   onBack: () => void;
   onNavigate: (tab: AppTab) => void;
   crisisData: CrisisDataState;
   chatPromptCorner: ChatPromptCorner;
   onChatPromptCornerChange: (corner: ChatPromptCorner) => void;
+  testLocation: Position | null;
+  onTestLocationChange: (position: Position | null) => void;
 }) {
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     myLocation: true,
@@ -48,9 +52,9 @@ export default function MapScreen({
     evacOrder: false,
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [locationTestMode, setLocationTestMode] = useState(false);
-  const [latitudeText, setLatitudeText] = useState('');
-  const [longitudeText, setLongitudeText] = useState('');
+  const [locationTestMode, setLocationTestMode] = useState(testLocation !== null);
+  const [latitudeText, setLatitudeText] = useState(testLocation ? String(testLocation.latitude) : '');
+  const [longitudeText, setLongitudeText] = useState(testLocation ? String(testLocation.longitude) : '');
   const [testData, setTestData] = useState<TestData>(initialTestData);
   const testRequestGuard = useRef(new TestLocationRequestGuard());
   const snapshot = crisisData.snapshot;
@@ -66,17 +70,12 @@ export default function MapScreen({
   const exitTestMode = () => {
     testRequestGuard.current.cancel();
     setLocationTestMode(false);
+    onTestLocationChange(null);
     setSelectedId(null);
     setTestData(initialTestData);
   };
 
-  const applyTestLocation = async () => {
-    const validation = validateTestCoordinates(latitudeText, longitudeText);
-    if (!validation.position) {
-      setTestData(previous => ({ ...previous, message: validation.error }));
-      return;
-    }
-    const position = validation.position;
+  const loadTestPreview = useCallback(async (position: Position) => {
     const requestId = testRequestGuard.current.begin();
     setSelectedId(null);
     setTestData(previous => ({ ...previous, position, loading: true, message: null }));
@@ -102,6 +101,21 @@ export default function MapScreen({
         message: error instanceof Error ? error.message : 'Unable to check this test location.',
       }));
     }
+  }, []);
+
+  useEffect(() => {
+    const guard = testRequestGuard.current;
+    if (testLocation) loadTestPreview(testLocation);
+    return () => guard.cancel();
+  }, [testLocation, loadTestPreview]);
+
+  const applyTestLocation = () => {
+    const validation = validateTestCoordinates(latitudeText, longitudeText);
+    if (!validation.position) {
+      setTestData(previous => ({ ...previous, message: validation.error }));
+      return;
+    }
+    onTestLocationChange(validation.position);
   };
 
   return (

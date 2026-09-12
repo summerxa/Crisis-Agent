@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCrisisData, REFRESH_TIMEOUT_MS } from '../src/hooks/useCrisisData';
 import { useSessionChat } from '../src/hooks/useSessionChat';
 import { getCurrentPosition, LocationPermissionDeniedError } from '../src/services/location';
+import { reverseGeocodePosition } from '../src/services/reverseGeocoder';
 import { fetchCrisisFeatures } from '../src/services/crisisSources';
 import { fetchTodoListAgentResponse } from '../src/services/todoListAgent';
 import { fetchChatAgentResponse } from '../src/services/chatAgent';
@@ -19,6 +20,7 @@ jest.mock('../src/services/location', () => ({
   LocationPermissionDeniedError: class extends Error {},
 }));
 jest.mock('../src/services/crisisSources', () => ({ fetchCrisisFeatures: jest.fn() }));
+jest.mock('../src/services/reverseGeocoder', () => ({ reverseGeocodePosition: jest.fn().mockResolvedValue(null) }));
 jest.mock('../src/services/todoListAgent', () => ({ fetchTodoListAgentResponse: jest.fn() }));
 jest.mock('../src/services/chatAgent', () => ({ fetchChatAgentResponse: jest.fn() }));
 
@@ -31,9 +33,10 @@ let chat: SessionChatState;
 let renderer: Renderer.ReactTestRenderer;
 let renderCount: number;
 let sessionId: string | undefined;
+let testLocation: typeof position | null;
 
 function Harness() {
-  data = useCrisisData({ sessionId });
+  data = useCrisisData({ sessionId, testLocation });
   chat = useSessionChat({ sessionId: sessionId ?? 'test-session', crisisData: data });
   renderCount++;
   return null;
@@ -49,10 +52,49 @@ beforeEach(() => {
   jest.clearAllMocks();
   renderCount = 0;
   sessionId = 'test-session';
+  testLocation = null;
   locate.mockReset().mockResolvedValue(position);
   fetchSources.mockReset().mockResolvedValue(sources);
   generate.mockReset().mockResolvedValue(plan);
   ask.mockReset().mockResolvedValue({ answer: 'Answer', citations: ['NWS'], follow_up_questions: ['Next question'] });
+});
+
+test('uses the latest applied location only on refresh and returns to GPS when cleared', async () => {
+  await mount();
+  testLocation = { ...position, latitude: 12, longitude: 34 };
+  await act(async () => renderer.update(<Harness />));
+  expect(fetchSources).toHaveBeenCalledTimes(1);
+  await act(async () => { await data.refresh(); });
+  expect(locate).toHaveBeenCalledTimes(1);
+  expect(fetchSources).toHaveBeenLastCalledWith(testLocation, expect.any(AbortSignal));
+  expect(reverseGeocodePosition).toHaveBeenLastCalledWith(testLocation, expect.any(AbortSignal));
+  expect(data.snapshot?.location).toEqual(testLocation);
+  expect(generate).toHaveBeenLastCalledWith(expect.objectContaining({
+    crisisSnapshot: expect.objectContaining({ location: testLocation }),
+  }), expect.any(AbortSignal));
+  testLocation = null;
+  await act(async () => renderer.update(<Harness />));
+  expect(fetchSources).toHaveBeenCalledTimes(2);
+  await act(async () => { await data.refresh(); });
+  expect(locate).toHaveBeenCalledTimes(2);
+  expect(data.snapshot?.location).toEqual(position);
+});
+
+test('an active refresh keeps its captured test location when the override changes', async () => {
+  testLocation = { ...position, latitude: 12, longitude: 34 };
+  const original = testLocation;
+  const pending = deferred<typeof sources>();
+  fetchSources.mockReturnValueOnce(pending.promise);
+  await mount();
+  const activeRefresh = data.refresh();
+  testLocation = { ...position, latitude: 56, longitude: 78 };
+  await act(async () => renderer.update(<Harness />));
+  expect(data.refresh()).toBe(activeRefresh);
+  await act(async () => { pending.resolve(sources); await activeRefresh; });
+  expect(data.snapshot?.location).toEqual(original);
+  await act(async () => { await data.refresh(); });
+  expect(data.snapshot?.location).toEqual(testLocation);
+  expect(locate).not.toHaveBeenCalled();
 });
 afterEach(async () => {
   if (renderer) await act(async () => renderer.unmount());

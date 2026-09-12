@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CrisisDataState, CrisisSnapshot, RefreshResult } from '../types';
+import type { CrisisDataState, CrisisSnapshot, Position, RefreshResult } from '../types';
 import { fetchCrisisFeatures } from '../services/crisisSources';
 import { getCurrentPosition, LocationPermissionDeniedError } from '../services/location';
 import { fetchTodoListAgentResponse } from '../services/todoListAgent';
@@ -18,8 +18,10 @@ const initialState: RefreshState = {
 };
 type ActiveRefresh = { controller: AbortController; promise: Promise<RefreshResult> };
 
-export function useCrisisData({ sessionId }: { sessionId?: string } = {}): CrisisDataState {
+export function useCrisisData({ sessionId, testLocation = null }: { sessionId?: string; testLocation?: Position | null } = {}): CrisisDataState {
   const [state, setState] = useState(initialState);
+  const latestTestLocation = useRef(testLocation);
+  useEffect(() => { latestTestLocation.current = testLocation; }, [testLocation]);
   const committedSnapshot = useRef<CrisisSnapshot | null>(null);
   const mounted = useRef(false);
   const active = useRef<ActiveRefresh | null>(null);
@@ -39,6 +41,7 @@ export function useCrisisData({ sessionId }: { sessionId?: string } = {}): Crisi
     const { signal } = controller;
     const startedAt = Date.now();
     const previousSnapshot = committedSnapshot.current;
+    const refreshLocation = latestTestLocation.current;
     let locationAcquired = false;
     const isCurrent = () => mounted.current && active.current?.controller === controller && !signal.aborted;
     const assertCurrent = () => {
@@ -67,7 +70,7 @@ export function useCrisisData({ sessionId }: { sessionId?: string } = {}): Crisi
     // Install the active request before starting any asynchronous work.
     const work = Promise.resolve().then(async () => {
       assertCurrent();
-      const location = await getCurrentPosition(signal);
+      const location = refreshLocation ?? await getCurrentPosition(signal);
       assertCurrent();
       locationAcquired = true;
       const [result, locationPlace] = await Promise.all([

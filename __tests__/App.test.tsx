@@ -4,7 +4,7 @@
 
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Linking, PermissionsAndroid, Text } from 'react-native';
+import { Linking, PermissionsAndroid, Text, TextInput } from 'react-native';
 import { deferred, plan } from '../testSupport/crisis';
 import type { TodoListAgentResponse } from '../src/types';
 
@@ -181,6 +181,51 @@ test('opens device settings from the permission warning', async () => {
     await renderer.root.find(node => typeof node.props.onPress === 'function').props.onPress();
   });
   expect(openSettings).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('applied test location survives navigation and refresh until Use GPS', async () => {
+  mockPositionAvailable = true;
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
+  const navigate = async (tab: string) => {
+    await ReactTestRenderer.act(async () => renderer.root.findByType(BottomNav).props.onTabChange(tab));
+  };
+  const press = async (label: string) => {
+    await ReactTestRenderer.act(async () => renderer.root.findAll(node =>
+      typeof node.props.onPress === 'function' && node.findAllByType(Text).some(child => child.props.children === label),
+    )[0].props.onPress());
+  };
+  const type = async (label: string, value: string) => {
+    await ReactTestRenderer.act(async () => renderer.root.findAllByType(TextInput)
+      .find(node => node.props.accessibilityLabel === label)!.props.onChangeText(value));
+  };
+  await navigate('map');
+  await press('Test location');
+  await type('Test latitude', '12');
+  await type('Test longitude', '34');
+  await press('Apply location');
+  expect(mockFetchCrisisFeatures).toHaveBeenCalledTimes(2);
+  await type('Test latitude', '999');
+  await press('Apply location');
+  await type('Test latitude', '56');
+  await navigate('home');
+  mockPositionAvailable = false;
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(2100); });
+  await press('↻ Refresh');
+  expect(renderer.root.findByType(HomeScreen).props.crisisData.snapshot.location)
+    .toMatchObject({ latitude: 12, longitude: 34 });
+  await navigate('map');
+  expect(renderer.root.findAllByType(TextInput).find(node => node.props.accessibilityLabel === 'Test latitude')!.props.value).toBe('12');
+  expect(renderer.root.findByType(CrisisMap).props.simulatedPosition).toBe(true);
+  expect(mockFetchCrisisFeatures).toHaveBeenLastCalledWith(expect.objectContaining({ latitude: 12, longitude: 34 }));
+  await press('Use GPS');
+  mockPositionAvailable = true;
+  await navigate('home');
+  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(2100); });
+  await press('↻ Refresh');
+  expect(renderer.root.findByType(HomeScreen).props.crisisData.snapshot.location)
+    .toMatchObject({ latitude: 37.3, longitude: -121.9 });
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
