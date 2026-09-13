@@ -172,7 +172,7 @@ export function LocationPermissionWarning({ isDarkMode }: { isDarkMode: boolean 
           <Text style={styles.permissionIcon}>⌖</Text>
           <Text style={styles.permissionTitle}>Location permission required</Text>
           <Text style={styles.permissionMessage}>
-            Crisis Agent needs your location to provide location-specific crisis information.{' '}
+            SituAlert needs your location to provide location-specific crisis information.{' '}
             Please enable Location in Settings, then restart the app.
           </Text>
           <Pressable

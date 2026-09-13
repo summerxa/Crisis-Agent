@@ -29,12 +29,24 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  headerLogo: {
+    width: 48,
+    height: 48,
+    flexShrink: 0,
+    marginRight: 8,
+  },
+  headerLocation: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
+  },
   locationIcon: {
     color: COLORS.blue,
     fontSize: 14,
     fontWeight: '800',
   },
   locationText: {
+    flexShrink: 1,
     color: COLORS.ink,
     fontSize: 13,
     fontWeight: '700',
@@ -45,6 +57,7 @@ export const styles = StyleSheet.create({
     marginTop: 3,
   },
   refreshButton: {
+    flexShrink: 0,
     backgroundColor: COLORS.navy,
     borderRadius: 12,
     paddingHorizontal: 12,

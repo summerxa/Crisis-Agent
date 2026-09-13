@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { COLORS, REFRESH_STEPS } from '../constants';
 import { styles } from '../styles';
 import type { AppTab, ChatPromptCorner, CrisisDataState, CrisisFeature, LayerKey, StatusLevel } from '../types';
@@ -14,7 +14,7 @@ const defaultLayers: Record<LayerKey, boolean> = {
   evacWarning: false,
   evacOrder: false,
 };
-const CHAT_PROMPT_TOP_BOUNDARY = 72;
+const CHAT_PROMPT_TOP_BOUNDARY = 77;
 
 function locationLabel(data: CrisisDataState) {
   const location = data.snapshot?.location;
@@ -142,6 +142,7 @@ export default function HomeScreen({
   onChatPromptCornerChange: (corner: ChatPromptCorner) => void;
 }) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(CHAT_PROMPT_TOP_BOUNDARY);
   const headerProps = crisisData.snapshot
     ? { sync: syncLabel(crisisData), location: locationLabel(crisisData) }
     : { sync: 'No live data available', location: 'Location unavailable' };
@@ -153,6 +154,7 @@ export default function HomeScreen({
       ) : (
         <>
           <Header
+            onHeightChange={setHeaderHeight}
             sync={headerProps.sync}
             onRefresh={() => { crisisData.refresh(); }}
             location={headerProps.location}
@@ -172,7 +174,7 @@ export default function HomeScreen({
         corner={chatPromptCorner}
         onCornerChange={onChatPromptCornerChange}
         onPress={() => onNavigate('chat')}
-        topBoundaryInset={CHAT_PROMPT_TOP_BOUNDARY}
+        topBoundaryInset={headerHeight}
         visible={!crisisData.showRefresh}
       />
     </View>
@@ -180,20 +182,29 @@ export default function HomeScreen({
 }
 
 function Header({
+  onHeightChange,
   sync,
   onRefresh,
   location,
 }: {
+  onHeightChange: (height: number) => void;
   sync: string;
   onRefresh: () => void;
   location: string;
 }) {
   return (
-    <View style={styles.header}>
-      <View>
+    <View style={styles.header} onLayout={event => onHeightChange(event.nativeEvent.layout.height)}>
+      <Image
+        source={require('../assets/situalert-logo.png')}
+        style={styles.headerLogo}
+        resizeMode="contain"
+        accessible
+        accessibilityLabel="SituAlert"
+      />
+      <View style={styles.headerLocation}>
         <View style={styles.rowCenter}>
           <Text style={styles.locationIcon}>⌖</Text>
-          <Text style={styles.locationText}>{location}</Text>
+          <Text style={styles.locationText} numberOfLines={2}>{location}</Text>
         </View>
         <Text style={styles.subtleText}>{sync}</Text>
       </View>
