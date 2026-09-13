@@ -29,19 +29,19 @@ export function validateTestCoordinates(latitudeText: string, longitudeText: str
   };
 }
 
-export class TestLocationRequestGuard {
-  private generation = 0;
+export function parseTestLocationCoordinates(value: string | undefined | null): Position | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
 
-  begin() {
-    this.generation += 1;
-    return this.generation;
+  const parts = trimmed.split(',');
+  if (parts.length !== 2) {
+    throw new Error('TEST_LOCATION_COORDINATES must use "latitude,longitude" format.');
   }
 
-  cancel() {
-    this.generation += 1;
+  const validation = validateTestCoordinates(parts[0], parts[1]);
+  if (!validation.position) {
+    throw new Error(`Invalid TEST_LOCATION_COORDINATES: ${validation.error}`);
   }
 
-  isCurrent(request: number) {
-    return request === this.generation;
-  }
+  return validation.position;
 }

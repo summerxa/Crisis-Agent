@@ -1,4 +1,4 @@
-import { TestLocationRequestGuard, validateTestCoordinates } from '../src/services/testLocation';
+import { parseTestLocationCoordinates, validateTestCoordinates } from '../src/services/testLocation';
 
 test('accepts decimal coordinates including valid boundaries', () => {
   expect(validateTestCoordinates('90', '-180').position).toMatchObject({ latitude: 90, longitude: -180 });
@@ -17,12 +17,7 @@ test.each([
   expect(result.error).toContain(message);
 });
 
-test('only accepts the newest request and cancels pending work when leaving test mode', () => {
-  const guard = new TestLocationRequestGuard();
-  const first = guard.begin();
-  const second = guard.begin();
-  expect(guard.isCurrent(first)).toBe(false);
-  expect(guard.isCurrent(second)).toBe(true);
-  guard.cancel();
-  expect(guard.isCurrent(second)).toBe(false);
+test('parses configured test coordinates and ignores blank values', () => {
+  expect(parseTestLocationCoordinates('12,34')).toMatchObject({ latitude: 12, longitude: 34 });
+  expect(parseTestLocationCoordinates('')).toBeNull();
 });

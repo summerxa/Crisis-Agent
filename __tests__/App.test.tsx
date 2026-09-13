@@ -4,21 +4,40 @@
 
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Linking, PermissionsAndroid, Text, TextInput } from 'react-native';
+import { Linking, PermissionsAndroid, Text } from 'react-native';
+import Config from 'react-native-config';
 import { deferred, plan } from '../testSupport/crisis';
 import type { TodoListAgentResponse } from '../src/types';
 
 let mockAuthorizationGranted = true;
 let mockPositionAvailable = false;
+const mockConfig = { USE_MOCK_AGENT_RESPONSE: 'false', TEST_LOCATION_COORDINATES: '' };
 
 jest.mock('react-native-get-random-values', () => ({}), { virtual: true });
 jest.mock('react-native-url-polyfill/auto', () => ({}), { virtual: true });
-jest.mock('react-native-config', () => ({ USE_MOCK_AGENT_RESPONSE: 'false' }));
+jest.mock('react-native-config', () => ({ default: mockConfig, ...mockConfig }));
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn().mockResolvedValue(null), setItem: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../src/services/sessionStorage', () => ({ getOrCreateSessionId: jest.fn().mockResolvedValue('test-session') }));
 jest.mock('../src/services/todoListAgent', () => ({ fetchTodoListAgentResponse: jest.fn() }));
+jest.mock('../src/hooks/useSessionChat', () => ({
+  useSessionChat: jest.fn(() => ({
+    messages: [],
+    input: '',
+    setInput: jest.fn(),
+    followUpPrompts: [],
+    showSuggestedQuestions: false,
+    isSubmitting: false,
+    hydrated: true,
+    chatReady: false,
+    disabled: true,
+    statusText: '',
+    inputPlaceholder: '',
+    contextMessage: '',
+    sendMessage: jest.fn(),
+  })),
+}));
 jest.mock('react-native-safe-area-context', () => {
   const ReactNative = require('react-native');
   return {
@@ -68,6 +87,8 @@ beforeEach(() => {
   jest.useFakeTimers({ doNotFake: ['queueMicrotask', 'setImmediate', 'nextTick'] });
   mockAuthorizationGranted = true;
   mockPositionAvailable = false;
+  mockConfig.TEST_LOCATION_COORDINATES = '';
+  (Config as unknown as typeof mockConfig).TEST_LOCATION_COORDINATES = '';
   jest.restoreAllMocks();
   mockFetchCrisisFeatures.mockClear();
   jest.mocked(fetchTodoListAgentResponse).mockReset().mockResolvedValue(plan);
@@ -184,8 +205,10 @@ test('opens device settings from the permission warning', async () => {
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('applied test location survives navigation and refresh until Use GPS', async () => {
-  mockPositionAvailable = true;
+test('configured test location drives startup and refresh without map controls', async () => {
+  mockConfig.TEST_LOCATION_COORDINATES = '12,34';
+  (Config as unknown as typeof mockConfig).TEST_LOCATION_COORDINATES = '12,34';
+  mockPositionAvailable = false;
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => { renderer = ReactTestRenderer.create(<App />); });
   const navigate = async (tab: string) => {
@@ -196,36 +219,24 @@ test('applied test location survives navigation and refresh until Use GPS', asyn
       typeof node.props.onPress === 'function' && node.findAllByType(Text).some(child => child.props.children === label),
     )[0].props.onPress());
   };
-  const type = async (label: string, value: string) => {
-    await ReactTestRenderer.act(async () => renderer.root.findAllByType(TextInput)
-      .find(node => node.props.accessibilityLabel === label)!.props.onChangeText(value));
-  };
-  await navigate('map');
-  await press('Test location');
-  await type('Test latitude', '12');
-  await type('Test longitude', '34');
-  await press('Apply location');
-  expect(mockFetchCrisisFeatures).toHaveBeenCalledTimes(2);
-  await type('Test latitude', '999');
-  await press('Apply location');
-  await type('Test latitude', '56');
-  await navigate('home');
-  mockPositionAvailable = false;
   await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(2100); });
+  expect(mockFetchCrisisFeatures).toHaveBeenCalledWith(
+    expect.objectContaining({ latitude: 12, longitude: 34 }),
+    expect.any(AbortSignal),
+  );
+  expect(renderer.root.findByType(HomeScreen).props.crisisData.snapshot.location)
+    .toMatchObject({ latitude: 12, longitude: 34 });
+
+  await navigate('map');
+  expect(renderer.root.findAllByType(Text).some(node => node.props.children === 'Test location')).toBe(false);
+  expect(renderer.root.findAllByType(Text).some(node => node.props.children === 'Use GPS')).toBe(false);
+  expect(renderer.root.findAllByProps({ title: 'Your location' })[0].props.coordinate)
+    .toMatchObject({ latitude: 12, longitude: 34 });
+
+  await navigate('home');
   await press('↻ Refresh');
   expect(renderer.root.findByType(HomeScreen).props.crisisData.snapshot.location)
     .toMatchObject({ latitude: 12, longitude: 34 });
-  await navigate('map');
-  expect(renderer.root.findAllByType(TextInput).find(node => node.props.accessibilityLabel === 'Test latitude')!.props.value).toBe('12');
-  expect(renderer.root.findByType(CrisisMap).props.simulatedPosition).toBe(true);
-  expect(mockFetchCrisisFeatures).toHaveBeenLastCalledWith(expect.objectContaining({ latitude: 12, longitude: 34 }));
-  await press('Use GPS');
-  mockPositionAvailable = true;
-  await navigate('home');
-  await ReactTestRenderer.act(async () => { jest.advanceTimersByTime(2100); });
-  await press('↻ Refresh');
-  expect(renderer.root.findByType(HomeScreen).props.crisisData.snapshot.location)
-    .toMatchObject({ latitude: 37.3, longitude: -121.9 });
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

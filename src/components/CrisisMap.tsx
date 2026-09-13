@@ -31,11 +31,10 @@ function FeatureOverlay({ feature, onPress }: { feature: CrisisFeature; onPress:
   ))}</>;
 }
 
-export default function CrisisMap({ compact = false, layers, location, simulatedPosition = false, features = [], loading = false, stale = false, statusMessage, onExpandMap, onSelectFeature, onMapLifecycleChange }: {
+export default function CrisisMap({ compact = false, layers, location, features = [], loading = false, stale = false, statusMessage, onExpandMap, onSelectFeature, onMapLifecycleChange }: {
   compact?: boolean;
   layers: Record<LayerKey, boolean>;
   location: Position | null;
-  simulatedPosition?: boolean;
   features?: CrisisFeature[];
   loading?: boolean;
   stale?: boolean;
@@ -86,12 +85,7 @@ export default function CrisisMap({ compact = false, layers, location, simulated
         onMapReady={() => dispatchMapLifecycle({ type: 'ready' })}
         onMapLoaded={() => dispatchMapLifecycle({ type: 'loaded' })}>
         {visibleFeatures.map(feature => <FeatureOverlay key={feature.id} feature={feature} onPress={() => onSelectFeature?.(feature)} />)}
-        {simulatedPosition && location && layers.myLocation && (
-          <Marker coordinate={location} title="Test location" description="This is not your current GPS position">
-            <View style={styles.testLocationMarker}><Text style={styles.testLocationMarkerText}>T</Text></View>
-          </Marker>
-        )}
-        {!simulatedPosition && location && layers.myLocation && (
+        {location && layers.myLocation && (
           <Marker coordinate={location} title="Your location" description="Location from your last successful refresh" pinColor={COLORS.blue} />
         )}
       </MapView>

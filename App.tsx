@@ -2,17 +2,25 @@ import "react-native-get-random-values";
 
 import React, { Component, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StatusBar, Text, useColorScheme, View } from 'react-native';
+import Config from 'react-native-config';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import BottomNav from './src/components/BottomNav';
 import ChatScreen from './src/screens/ChatScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import MapScreen from './src/screens/MapScreen';
 import { styles } from './src/styles';
-import type { AppTab, ChatPromptCorner, Position } from './src/types';
+import type { AppTab, ChatPromptCorner } from './src/types';
 import { useCrisisData } from './src/hooks/useCrisisData';
 import { useSessionChat } from './src/hooks/useSessionChat';
 import { getOrCreateSessionId } from './src/services/sessionStorage';
+import { parseTestLocationCoordinates } from './src/services/testLocation';
 import { COLORS } from './src/constants';
+
+function configValue(key: string): string | undefined {
+  const config = Config as unknown as Record<string, string | undefined> | undefined;
+  const defaultConfig = (config as { default?: Record<string, string | undefined> } | undefined)?.default;
+  return config?.[key] ?? defaultConfig?.[key];
+}
 
 class ErrorBoundary extends Component<
   { children: React.ReactNode },
@@ -41,9 +49,30 @@ class ErrorBoundary extends Component<
 function AppBody({ sessionId }: { sessionId: string }) {
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [chatPromptCorner, setChatPromptCorner] = useState<ChatPromptCorner>('bottomRight');
-  const [testLocation, setTestLocation] = useState<Position | null>(null);
-  const crisisData = useCrisisData({ sessionId, testLocation });
+  const [configuredTestLocation] = useState(() => {
+    try {
+      return {
+        location: parseTestLocationCoordinates(configValue('TEST_LOCATION_COORDINATES')),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        location: null,
+        error: error instanceof Error ? error.message : 'Invalid TEST_LOCATION_COORDINATES.',
+      };
+    }
+  });
+  const crisisData = useCrisisData({ sessionId, testLocation: configuredTestLocation.location });
   const sessionChat = useSessionChat({ sessionId, crisisData });
+
+  if (configuredTestLocation.error) {
+    return (
+      <View style={styles.errorBox}>
+        <Text style={styles.errorTitle}>Configuration error</Text>
+        <Text style={styles.errorText}>{configuredTestLocation.error}</Text>
+      </View>
+    );
+  }
 
   return (
     <>
@@ -59,8 +88,6 @@ function AppBody({ sessionId }: { sessionId: string }) {
           )}
           {activeTab === 'map' && (
             <MapScreen
-              testLocation={testLocation}
-              onTestLocationChange={setTestLocation}
               onBack={() => setActiveTab('home')}
               onNavigate={setActiveTab}
               crisisData={crisisData}

@@ -19,6 +19,8 @@ Set `AGENT_URL` in your local `.env` to the existing agent API base URL. Real To
 
 Startup and Refresh acquire location, fetch NWS and WFIGS, and wait for a validated TodoList response before replacing the current situation. Any failure or a 120-second deadline preserves the last successful location, disaster information, plan, and comparison history for this app session. Home shows the failure and offers Retry. The four loading steps use timers, with the final step waiting for completion.
 
+For controlled demos or local testing, set `TEST_LOCATION_COORDINATES` in `.env` to a comma-separated `latitude,longitude` pair, for example `TEST_LOCATION_COORDINATES=37.7749,-122.4194`. When present, startup and Refresh use those coordinates instead of GPS. Leave the variable unset or blank to use device location. Rebuild the native app after changing `.env`.
+
 Chat keeps its history and drafts. Each new question includes the last successfully committed snapshot and plan writeups; refresh itself does not send a chat message. Chat submissions pause during refresh and resume with the retained context after a failure.
 
 ### Compact agent context

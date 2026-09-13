@@ -1,30 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { LAYERS } from '../constants';
 import { layerChipStyles, layerDotStyles, layerTextStyles, styles } from '../styles';
-import type { AppTab, ChatPromptCorner, CrisisDataState, CrisisFeature, LayerKey, Position, SourceHealth } from '../types';
+import type { AppTab, ChatPromptCorner, CrisisDataState, LayerKey } from '../types';
 import CrisisMap from '../components/CrisisMap';
 import ChatPrompt from '../components/ChatPrompt';
-import { fetchCrisisFeatures } from '../services/crisisSources';
-import { TestLocationRequestGuard, validateTestCoordinates } from '../services/testLocation';
 
-type TestData = {
-  position: Position | null;
-  features: CrisisFeature[];
-  sourceHealth: Record<'nws' | 'wfigs', SourceHealth> | null;
-  loading: boolean;
-  stale: boolean;
-  message: string | null;
-};
-
-const initialTestData: TestData = {
-  position: null,
-  features: [],
-  sourceHealth: null,
-  loading: false,
-  stale: false,
-  message: null,
-};
 const CHAT_PROMPT_TOP_BOUNDARY = 72;
 
 export default function MapScreen({
@@ -33,16 +14,12 @@ export default function MapScreen({
   crisisData,
   chatPromptCorner,
   onChatPromptCornerChange,
-  testLocation,
-  onTestLocationChange,
 }: {
   onBack: () => void;
   onNavigate: (tab: AppTab) => void;
   crisisData: CrisisDataState;
   chatPromptCorner: ChatPromptCorner;
   onChatPromptCornerChange: (corner: ChatPromptCorner) => void;
-  testLocation: Position | null;
-  onTestLocationChange: (position: Position | null) => void;
 }) {
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     myLocation: true,
@@ -52,71 +29,13 @@ export default function MapScreen({
     evacOrder: false,
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [locationTestMode, setLocationTestMode] = useState(testLocation !== null);
-  const [latitudeText, setLatitudeText] = useState(testLocation ? String(testLocation.latitude) : '');
-  const [longitudeText, setLongitudeText] = useState(testLocation ? String(testLocation.longitude) : '');
-  const [testData, setTestData] = useState<TestData>(initialTestData);
-  const testRequestGuard = useRef(new TestLocationRequestGuard());
   const snapshot = crisisData.snapshot;
-  const selected = (locationTestMode ? testData.features : snapshot?.features ?? [])
+  const selected = (snapshot?.features ?? [])
     .find(feature => feature.id === selectedId) ?? null;
-  const activeLocation = locationTestMode ? testData.position : snapshot?.location ?? null;
+  const activeLocation = snapshot?.location ?? null;
   const locationLabel = activeLocation
-    ? locationTestMode
-      ? `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`
-      : snapshot?.locationPlace?.label ?? `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`
-    : locationTestMode ? 'Enter a test location' : 'Waiting for location';
-
-  const exitTestMode = () => {
-    testRequestGuard.current.cancel();
-    setLocationTestMode(false);
-    onTestLocationChange(null);
-    setSelectedId(null);
-    setTestData(initialTestData);
-  };
-
-  const loadTestPreview = useCallback(async (position: Position) => {
-    const requestId = testRequestGuard.current.begin();
-    setSelectedId(null);
-    setTestData(previous => ({ ...previous, position, loading: true, message: null }));
-    try {
-      const result = await fetchCrisisFeatures(position);
-      if (!testRequestGuard.current.isCurrent(requestId)) return;
-      const failedSources = Object.values(result.sourceHealth).filter(source => source.status === 'error').length;
-      const allFailed = failedSources === 2;
-      const message = allFailed
-        ? 'Live official sources are unavailable. This is not an all-clear.'
-        : failedSources > 0
-          ? `${result.features.length} official source(s) failed. Results may be incomplete.`
-          : result.features.length === 0
-            ? 'Official sources returned no mapped threats for this test point.'
-            : `${result.features.length} official map feature${result.features.length === 1 ? '' : 's'} found.`;
-      setTestData({ position, features: result.features, sourceHealth: result.sourceHealth, loading: false, stale: failedSources > 0, message });
-    } catch (error) {
-      if (!testRequestGuard.current.isCurrent(requestId)) return;
-      setTestData(previous => ({
-        ...previous,
-        loading: false,
-        stale: true,
-        message: error instanceof Error ? error.message : 'Unable to check this test location.',
-      }));
-    }
-  }, []);
-
-  useEffect(() => {
-    const guard = testRequestGuard.current;
-    if (testLocation) loadTestPreview(testLocation);
-    return () => guard.cancel();
-  }, [testLocation, loadTestPreview]);
-
-  const applyTestLocation = () => {
-    const validation = validateTestCoordinates(latitudeText, longitudeText);
-    if (!validation.position) {
-      setTestData(previous => ({ ...previous, message: validation.error }));
-      return;
-    }
-    onTestLocationChange(validation.position);
-  };
+    ? snapshot?.locationPlace?.label ?? `${activeLocation.latitude.toFixed(4)}, ${activeLocation.longitude.toFixed(4)}`
+    : 'Waiting for location';
 
   return (
     <View style={styles.mapScreen}>
@@ -126,39 +45,17 @@ export default function MapScreen({
         </Pressable>
         <View>
           <Text style={styles.toolbarTitle}>Live crisis map</Text>
-          <Text style={styles.subtleText}>{locationLabel}{(locationTestMode ? testData.stale : snapshot?.stale) ? ' · Data may be incomplete' : ''}</Text>
+          <Text style={styles.subtleText}>{locationLabel}{snapshot?.stale ? ' · Data may be incomplete' : ''}</Text>
         </View>
-        {__DEV__ && <Pressable
-          accessibilityRole="switch"
-          accessibilityState={{ checked: locationTestMode }}
-          onPress={() => locationTestMode ? exitTestMode() : (setLocationTestMode(true), setSelectedId(null))}
-          style={[styles.testModeToggle, locationTestMode && styles.testModeToggleActive]}>
-          <View style={[styles.testModeDot, locationTestMode && styles.testModeDotActive]} />
-          <Text style={[styles.testModeText, locationTestMode && styles.testModeTextActive]}>{locationTestMode ? 'Use GPS' : 'Test location'}</Text>
-        </Pressable>}
       </View>
-      {__DEV__ && locationTestMode && (
-        <View style={styles.testLocationControls}>
-          <Text style={styles.testLocationWarning}>TEST LOCATION — not your current position</Text>
-          <View style={styles.testLocationInputRow}>
-            <TextInput accessibilityLabel="Test latitude" value={latitudeText} onChangeText={setLatitudeText} placeholder="Latitude" keyboardType="numbers-and-punctuation" style={styles.testLocationInput} />
-            <TextInput accessibilityLabel="Test longitude" value={longitudeText} onChangeText={setLongitudeText} placeholder="Longitude" keyboardType="numbers-and-punctuation" style={styles.testLocationInput} />
-            <Pressable accessibilityRole="button" onPress={applyTestLocation} style={[styles.testLocationApply, testData.loading && styles.testLocationApplyDisabled]}>
-              <Text style={styles.testLocationApplyText}>{testData.loading ? 'Checking…' : 'Apply location'}</Text>
-            </Pressable>
-          </View>
-          {testData.message && <Text accessibilityLiveRegion="polite" style={[styles.testLocationMessage, testData.stale && styles.testLocationMessageWarning]}>{testData.message}</Text>}
-        </View>
-      )}
       <View style={styles.fullMapArea}>
         <CrisisMap
           layers={layers}
           location={activeLocation}
-          simulatedPosition={locationTestMode}
-          features={locationTestMode ? testData.features : snapshot?.features ?? []}
-          loading={locationTestMode ? testData.loading : crisisData.loading}
-          stale={locationTestMode ? testData.stale : snapshot?.stale || !!crisisData.refreshError}
-          statusMessage={locationTestMode ? 'Live test results may be incomplete' : crisisData.refreshError
+          features={snapshot?.features ?? []}
+          loading={crisisData.loading}
+          stale={snapshot?.stale || !!crisisData.refreshError}
+          statusMessage={crisisData.refreshError
             ? snapshot ? 'Refresh failed · Showing previous information' : 'Situation unavailable · Retry from Home'
             : undefined}
           onSelectFeature={feature => setSelectedId(feature.id)}
