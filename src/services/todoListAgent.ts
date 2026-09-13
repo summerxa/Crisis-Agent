@@ -9,26 +9,27 @@ import { AGENT_URL, postAgentPrompt } from './agentClient';
 
 const MOCK_TODO_LIST_AGENT_RESPONSE: TodoListAgentResponse = {
   state: 'ACT',
-  subtitle: 'Suggested action plan: krill urself',
+  subtitle: 'This is a test. Here is a placeholder suggested action plan.',
   description:
-    'Look out! There is a magnitude 67 earthquake nearby.',
+    'This is a test. Natural disaster info goes here.',
   change_items: [
-    'More testing test',
     'Mock response plan is ready for review.',
+    'Mock data goes here',
+    'Mock data goes here',
   ],
   action_items: [
     {
       emoji: '🔥',
       short_description: 'This is a test',
       long_description:
-        'Testing todo list agent output and UI stuff yayyy',
+        'Testing todo list agent output and UI',
       citation: ['Mocked TodoListAgent data'],
     },
     {
-      emoji: '😋',
-      short_description: 'Six seven',
+      emoji: '🍎',
+      short_description: 'Testing',
       long_description:
-        'Six seven six seven six seven six seven six seven six seven six seven six seven',
+        'Here is a description. It might be long. The UI should support long descriptions.',
       citation: ['Mocked TodoListAgent data'],
     },
   ],

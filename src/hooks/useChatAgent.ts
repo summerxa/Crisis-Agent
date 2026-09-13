@@ -3,11 +3,10 @@ import Config from 'react-native-config';
 import { fetchChatAgentResponse } from '../services/chatAgent';
 import type { ChatAgentRequest, ChatAgentResponse } from '../types';
 
-// TODO: Just for testing, can delete later
 const MOCK_CHAT_AGENT_RESPONSE: ChatAgentResponse = {
   citations: ['Mocked ChatAgent data'],
   answer:
-    'Test test',
+    'This is a mocked response, used to test the UI. Do not use as official guidance.',
   follow_up_questions: [
     'What changed since the last update?',
     'What should I do first?',
