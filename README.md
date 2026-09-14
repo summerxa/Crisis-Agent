@@ -1,128 +1,138 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# SituAlert
 
-# Getting Started
+SituAlert is a React Native Android app that helps people understand nearby disaster risk quickly. It uses current location, official alert sources, an interactive map, and agentic AI to turn raw emergency data into a plain-language situation summary and action plan.
 
-## Google Maps configuration
+During fast-moving weather and wildfire events, official information can be fragmented, technical, or hard to interpret under stress. SituAlert is designed to answer the immediate questions a person has: what is near me, what changed, how serious is it, and what should I do next?
 
-The application expects separate, restricted Google Maps SDK keys for Android and iOS. Never commit either key.
+## What It Does
 
-- Android: add `GOOGLE_MAPS_API_KEY=your_android_key` to `android/local.properties`. Restrict it to the Android application ID and signing certificate.
-- iOS: add a user-defined Xcode build setting named `GOOGLE_MAPS_API_KEY` for the CrisisAgent target. Restrict that key to the iOS bundle identifier.
-- Enable **Maps SDK for Android** and **Maps SDK for iOS** and attach billing to the Google Cloud project.
-- After installing JavaScript dependencies, run `bundle exec pod install` from `ios` on macOS before building iOS.
+- Checks the user's current location for active **National Weather Service** alerts.
+- Checks nearby active wildfire perimeters from **NIFC WFIGS**.
+- Displays nearby alerts and wildfire areas on an interactive map.
+- Sends compact, source-attributed disaster context to an AI action-planning agent.
+- Produces a readable status, summary, changes since the previous refresh, and prioritized action items.
+- Includes a disaster-prep chatbot that can answer follow-up questions using the latest app context.
 
-The app requests foreground location only. It acquires one position when it opens and again when the existing Refresh button is used; it does not track in the background.
+The app requests foreground location only. It gets one location when the app opens and again when the user taps Refresh; it does not track in the background.
 
-## Refresh and agent configuration
+## Repository Layout
 
-Set `AGENT_URL` in your local `.env` to the existing agent API base URL. Real TodoList and ChatAgent requests are the default (`USE_MOCK_AGENT_RESPONSE=false`); set it to `true` only for explicit mock development. Rebuild the native app after changing `.env` so React Native Config picks up the setting.
+```text
+.
+|-- src/                         # React Native app source
+|   |-- components/              # UI components, including map and navigation
+|   |-- hooks/                   # Refresh/chat state hooks
+|   |-- screens/                 # Home, Map, and Chat screens
+|   `-- services/                # Location, alert fetching, AI prompts, geometry, persistence
+|-- android/                     # Android native project
+|-- ios/                         # iOS native project scaffold, not the primary hackathon target
+|-- backend/
+|   |-- api/                     # AWS Lambda/API wrapper for deployed agent runtimes
+|   `-- CrisisAgentBackend/      # AgentCore backend agents and deployment config
+|-- __tests__/                   # Frontend unit tests
+`-- package.json                 # React Native scripts and dependencies
+```
 
-Startup and Refresh acquire location, fetch NWS and WFIGS, and wait for a validated TodoList response before replacing the current situation. Any failure or a 120-second deadline preserves the last successful location, disaster information, plan, and comparison history for this app session. Home shows the failure and offers Retry. The four loading steps use timers, with the final step waiting for completion.
+## Architecture
 
-For controlled demos or local testing, set `TEST_LOCATION_COORDINATES` in `.env` to a comma-separated `latitude,longitude` pair, for example `TEST_LOCATION_COORDINATES=37.7749,-122.4194`. When present, startup and Refresh use those coordinates instead of GPS. Leave the variable unset or blank to use device location. Rebuild the native app after changing `.env`.
+1. The Android app gets the user's foreground location.
+2. The app fetches official source data directly:
+   - NWS active alerts for the user's point.
+   - WFIGS active wildfire perimeters near the user's area.
+3. The app compacts the source data into an agent context that preserves descriptions, citations, update times, and approximate proximity while keeping heavy geometry local.
+4. The deployed AWS backend invokes two AgentCore agents:
+   - `TodoListAgent` analyzes the current disaster snapshot and returns structured status, summary, changes, and action items.
+   - `ChatAgent` answers user questions using the most recent disaster snapshot and summary generated by TodoListAgent.
+5. The app renders the result across the Home, Map, and Chat screens.
 
-Chat keeps its history and drafts. Each new question includes the last successfully committed snapshot and plan writeups; refresh itself does not send a chat message. Chat submissions pause during refresh and resume with the retained context after a failure.
+The backend code is included for transparency and future development, but the backend logic has already been deployed to AWS. Local app development points at the deployed API with `AGENT_URL`.
 
-### Compact agent context
+## Prerequisites
 
-TodoList and Chat receive a shared compact context: each current feature once, full official descriptions and source attribution, and approximate spatial relationships instead of map polygons. Full geometry stays in the app. Distance is in miles to the affected area (zero inside/on the boundary), or to a point; unknown spatial context is never treated as outside.
+- macOS, Linux, or Windows with a working React Native Android environment.
+- Node.js `>= 22.11.0`.
+- npm.
+- JDK and Android Studio with an Android SDK/emulator.
+- A Google Maps SDK key for Android.
 
-Comparisons use source record IDs from the last successful refresh. They include added IDs, compact removed records, and only previous values of changed fields. Source-time, geometry, and user-proximity changes are distinguished. Missing/duplicate IDs are uncomparable; a record leaving the result does not establish that a disaster ended. The first refresh explicitly has no baseline.
+Follow the official React Native environment guide for Android if this machine is not set up yet: [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment).
 
-TodoList output length targets are system-prompt guidance only. Long, otherwise valid responses are accepted in full. Model choice and the one-search limit are unchanged.
+## Local Setup
 
-Run `npm test -- --runInBand --testPathIgnorePatterns=backend` for frontend checks. The polygon-heavy fixture in `agentContext.test.ts` reports serialized UTF-8 bytes before/after compaction; this is not measured model token usage or a latency guarantee. Run `python -B -m unittest discover -s backend/CrisisAgentBackend/tests -v` with the TodoList environment for offline backend checks.
-
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
-
-## Step 1: Start Metro
-
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
-
-To start the Metro dev server, run the following command from the root of your React Native project:
+Install JavaScript dependencies:
 
 ```sh
-# Using npm
+npm install
+```
+
+Create a local `.env` file at the repository root:
+
+```sh
+AGENT_URL=https://your-deployed-api.example.com
+```
+
+`AGENT_URL` should be the base URL for the deployed AWS API. The app will call these endpoints:
+
+- `POST /agents/todolist/invocations`
+- `POST /agents/chat/invocations`
+
+React Native Config values are read into the native app, so rebuild the app after changing `.env`.
+
+## Google Maps Setup
+
+Add the Android Google Maps key to `android/local.properties`:
+
+```properties
+GOOGLE_MAPS_API_KEY=your_android_google_maps_key
+```
+
+In Google Cloud, enable **Maps SDK for Android** and attach billing to the project. Restrict the key to the Android app ID and signing certificate. Do not commit real API keys.
+
+## Run on Android
+
+Start Metro from the repository root:
+
+```sh
 npm start
-
-# OR using Yarn
-yarn start
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
+In a second terminal, build and launch the Android app:
 
 ```sh
-# Using npm
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### iOS
+You can run the app on an Android emulator or a connected Android device. If using real location, grant foreground location permission when prompted.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+## Testing
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Run the frontend test suite:
 
 ```sh
-bundle install
+npm test -- --runInBand --testPathIgnorePatterns=backend
 ```
 
-Then, and every time you update your native dependencies, run:
+The backend has separate Python tests under `backend/CrisisAgentBackend/tests`. If you are working on the backend locally with its Python environment configured, run:
 
 ```sh
-bundle exec pod install
+python -B -m unittest discover -s backend/CrisisAgentBackend/tests -v
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## Backend Notes
+
+The backend directory contains the AWS AgentCore project, two agent apps, CDK infrastructure, and the API handler that forwards app requests to deployed Bedrock AgentCore runtimes.
+
+Useful package scripts are included:
 
 ```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+npm run backend:dev
+npm run backend:invoke
+npm run backend:status
+npm run backend:deploy
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+These require the AgentCore CLI, AWS credentials, and the backend environment expected by `backend/CrisisAgentBackend`. They are not required just to run the Android app against the already deployed backend.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Safety Note
 
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+SituAlert is a decision-support tool, not an official emergency authority. The app is designed to cite official sources and summarize them clearly, but users should still follow instructions from local emergency management, fire agencies, law enforcement, and the National Weather Service.

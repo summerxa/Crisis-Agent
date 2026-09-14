@@ -3,10 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android --port 6767",
-    "ios": "react-native run-ios --port 6767",
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
     "lint": "eslint .",
-    "start": "react-native start --port 6767",
+    "start": "react-native start",
     "test": "jest",
     "backend:invoke": "cd backend/CrisisAgentBackend && env -u INIT_CWD -u npm_package_json agentcore invoke",
     "backend:dev": "cd backend/CrisisAgentBackend && env -u INIT_CWD -u npm_package_json agentcore dev",
