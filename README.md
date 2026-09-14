@@ -1,10 +1,12 @@
 # SituAlert
 
-[Presentation Slides](https://www.figma.com/deck/KNLSHIqcYcp48LXZ7oFnlK/Untitled?node-id=1-42&t=TXz3BXgqK4XdLr4p-1)
-
 SituAlert is a React Native Android app that helps people understand nearby disaster risk quickly. It uses current location, official alert sources, an interactive map, and agentic AI to turn raw emergency data into a plain-language situation summary and action plan.
 
 During fast-moving weather and wildfire events, official information can be fragmented, technical, or hard to interpret under stress. SituAlert is designed to answer the immediate questions a person has: what is near me, what changed, how serious is it, and what should I do next?
+
+<img height="229" alt="Screenshot 2026-09-14 at 12 29 11 PM" src="https://github.com/user-attachments/assets/1ab0f2bb-266a-4782-b68e-b99b58756442" />
+
+[Presentation Slides](https://www.figma.com/deck/KNLSHIqcYcp48LXZ7oFnlK/Untitled?node-id=1-42&t=TXz3BXgqK4XdLr4p-1)
 
 ## What It Does
 
