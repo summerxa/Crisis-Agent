@@ -15,7 +15,6 @@ const MOCK_TODO_LIST_AGENT_RESPONSE: TodoListAgentResponse = {
   change_items: [
     'Mock response plan is ready for review.',
     'Mock data goes here',
-    'Mock data goes here',
   ],
   action_items: [
     {
