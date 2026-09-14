@@ -4,7 +4,7 @@ SituAlert is a React Native Android app that helps people understand nearby disa
 
 During fast-moving weather and wildfire events, official information can be fragmented, technical, or hard to interpret under stress. SituAlert is designed to answer the immediate questions a person has: what is near me, what changed, how serious is it, and what should I do next?
 
-<img height="229" alt="Screenshot 2026-09-14 at 12 29 11 PM" src="https://github.com/user-attachments/assets/1ab0f2bb-266a-4782-b68e-b99b58756442" />
+<img height="229" alt="SituAlert logo, tagline, and contributors (Annabel Luo and Anne Xia)" src="https://github.com/user-attachments/assets/1ab0f2bb-266a-4782-b68e-b99b58756442" />
 
 [Presentation Slides](https://www.figma.com/deck/KNLSHIqcYcp48LXZ7oFnlK/Untitled?node-id=1-42&t=TXz3BXgqK4XdLr4p-1)
 
@@ -50,6 +50,9 @@ The app requests foreground location only. It gets one location when the app ope
 5. The app renders the result across the Home, Map, and Chat screens.
 
 The backend code is included for transparency and future development, but the backend logic has already been deployed to AWS. Local app development points at the deployed API with `AGENT_URL`.
+
+<img width="801" height="881" alt="SituAlert codebase architecture diagram" src="https://github.com/user-attachments/assets/07fa062f-093f-4d63-a685-4f6f0923b483" />
+
 
 ## Prerequisites
 
