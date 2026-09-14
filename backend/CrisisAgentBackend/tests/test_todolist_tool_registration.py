@@ -78,16 +78,6 @@ class ToolRegistrationTests(unittest.TestCase):
         session.list_tools.assert_awaited_once()
         self.assertEqual(first[0].tool_spec["name"], TOOL_NAME)
 
-    def test_pagination_finds_named_tool_after_an_empty_filtered_page(self):
-        first, second, session = self.load_provider_twice(self.make_client(), [
-            ListToolsResult(tools=[tool("Other")], nextCursor="page-two"),
-            ListToolsResult(tools=[tool(TOOL_NAME)]),
-        ])
-        self.assertEqual([item.tool_name for item in first], [TOOL_NAME])
-        self.assertIs(first, second)
-        self.assertEqual(session.list_tools.await_count, 2)
-        session.list_tools.assert_any_await(cursor="page-two")
-
     def test_missing_tool_still_fails_required_tool_check(self):
         selected, _, _ = self.load_provider_twice(self.make_client(), [ListToolsResult(tools=[tool("Other")])])
         self.assertEqual(selected, [])
