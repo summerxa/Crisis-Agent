@@ -29,7 +29,7 @@ The app requests foreground location only. It gets one location when the app ope
 |   |-- screens/                 # Home, Map, and Chat screens
 |   `-- services/                # Location, alert fetching, AI prompts, geometry, persistence
 |-- android/                     # Android native project
-|-- ios/                         # iOS native project scaffold, not the primary hackathon target
+|-- ios/                         # iOS native project scaffold, not the primary target
 |-- backend/
 |   |-- api/                     # AWS Lambda/API wrapper for deployed agent runtimes
 |   `-- CrisisAgentBackend/      # AgentCore backend agents and deployment config
